@@ -1,71 +1,61 @@
 import React, { useEffect, useMemo, useState } from "react";
-
-type Person = "Ondra" | "Kája" | "Oba";
-type SectionKey = "dashboard" | "tasks" | "budget" | "guests";
-
-type TaskStatus = "To do" | "Rozdělané" | "Čeká" | "Hotovo";
-type TaskPriority = "Nízká" | "Střední" | "Vysoká";
-
-type Task = {
-  id: string;
-  text: string;
-  deadline: string | null;
-  done: boolean;
-  owner: Person;
-  status: TaskStatus;
-  note: string | null;
-  priority: TaskPriority;
-  updated_by: string | null;
-};
-
-type BudgetCategory =
-  | "Místo"
-  | "Fotograf"
-  | "Prstýnky"
-  | "Oblečení"
-  | "Hudba"
-  | "Jídlo"
-  | "Dekorace"
-  | "Dort"
-  | "Doprava"
-  | "Ostatní";
-
-type PaymentStatus = "Nezaplaceno" | "Záloha" | "Zaplaceno";
-
-type BudgetItem = {
-  id: string;
-  category: BudgetCategory;
-  name: string;
-  planned: number;
-  actual: number;
-  deposit: number;
-  fully_paid: boolean;
-  owner: Person;
-  vendor: string | null;
-  due_date: string | null;
-  payment_status: PaymentStatus;
-  note: string | null;
-  updated_by: string | null;
-};
-
-type GuestSide = "Ondra" | "Kája" | "Společní";
-type RsvpStatus = "Bez odpovědi" | "Potvrzeno" | "Odmítl";
-
-type Guest = {
-  id: string;
-  name: string;
-  confirmed: boolean;
-  note: string | null;
-  side: GuestSide;
-  rsvp_status: RsvpStatus;
-  guest_count: number;
-  accommodation: boolean;
-  child: boolean;
-  updated_by: string | null;
-};
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
+import type {
+  BudgetCategory,
+  BudgetItem,
+  Guest,
+  GuestSide,
+  PaymentStatus,
+  Person,
+  RsvpStatus,
+  SectionKey,
+  Task,
+  TaskPriority,
+  TaskStatus,
+} from "./types";
+import { supabaseRequest } from "./lib/supabase";
+import {
+  formatDate,
+  getBudgetStats,
+  getGuestStats,
+  getRemaining,
+  getTaskStats,
+  normalizeGuestConfirmed,
+  normalizePaymentStatus,
+  sortBudget,
+  sortTasks,
+} from "./lib/utils";
+import {
+  badgeRowStyle,
+  badgeStyle,
+  buttonRowStyle,
+  cardListStyle,
+  cardStyle,
+  cardTitleStyle,
+  checkboxLineStyle,
+  checkboxRowStyle,
+  chipStyle,
+  chipsWrapStyle,
+  containerStyle,
+  dangerButtonStyle,
+  emptyStyle,
+  errorStyle,
+  filterCardStyle,
+  filterLabelStyle,
+  filterTitleStyle,
+  formStackStyle,
+  inputStyle,
+  loadingStyle,
+  metaGridStyle,
+  primaryButtonStyle,
+  secondaryButtonStyle,
+  sectionStyle,
+  sectionToggleStyle,
+  statBoxStyle,
+  statsWrapStyle,
+  statusStyle,
+  titleStyle,
+  topBarStyle,
+} from "./ui";
 
 const people: Person[] = ["Ondra", "Kája", "Oba"];
 const taskStatuses: TaskStatus[] = ["To do", "Rozdělané", "Čeká", "Hotovo"];
@@ -86,36 +76,6 @@ const paymentStatuses: PaymentStatus[] = ["Nezaplaceno", "Záloha", "Zaplaceno"]
 const guestSides: GuestSide[] = ["Ondra", "Kája", "Společní"];
 const rsvpStatuses: RsvpStatus[] = ["Bez odpovědi", "Potvrzeno", "Odmítl"];
 
-async function supabaseRequest(path: string, options: RequestInit = {}) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...options,
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-      "Content-Type": "application/json",
-      Prefer: "return=representation",
-      ...(options.headers || {}),
-    },
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || "Supabase request failed");
-  }
-
-  if (response.status === 204) return null;
-  return response.json();
-}
-
-function formatDate(date: string | null | undefined) {
-  if (!date) return "-";
-  return new Date(date).toLocaleDateString("cs-CZ");
-}
-
-function toggleValue<T extends string>(current: T, all: T[], clicked: T): T | "Vše" {
-  return current === clicked ? "Vše" : clicked;
-}
-
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -124,6 +84,13 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
   const [guests, setGuests] = useState<Guest[]>([]);
+
+  const [sectionsOpen, setSectionsOpen] = useState<Record<SectionKey, boolean>>({
+    dashboard: true,
+    tasks: true,
+    budget: true,
+    guests: true,
+  });
 
   const [taskInput, setTaskInput] = useState("");
   const [taskDeadline, setTaskDeadline] = useState("");
@@ -152,8 +119,7 @@ export default function App() {
   const [guestName, setGuestName] = useState("");
   const [guestNote, setGuestNote] = useState("");
   const [guestSide, setGuestSide] = useState<GuestSide>("Společní");
-  const [guestRsvp, setGuestRsvp] =
-    useState<RsvpStatus>("Bez odpovědi");
+  const [guestRsvp, setGuestRsvp] = useState<RsvpStatus>("Bez odpovědi");
   const [guestCount, setGuestCount] = useState("1");
   const [guestAccommodation, setGuestAccommodation] = useState(false);
   const [guestChild, setGuestChild] = useState(false);
@@ -172,13 +138,6 @@ export default function App() {
 
   const [guestSideFilter, setGuestSideFilter] = useState<GuestSide | "Vše">("Vše");
   const [guestRsvpFilter, setGuestRsvpFilter] = useState<RsvpStatus | "Vše">("Vše");
-
-  const [sectionsOpen, setSectionsOpen] = useState<Record<SectionKey, boolean>>({
-    dashboard: true,
-    tasks: true,
-    budget: true,
-    guests: true,
-  });
 
   async function loadAll() {
     try {
@@ -204,6 +163,10 @@ export default function App() {
   useEffect(() => {
     loadAll();
   }, []);
+
+  function toggleSection(section: SectionKey) {
+    setSectionsOpen((prev) => ({ ...prev, [section]: !prev[section] }));
+  }
 
   function resetTaskForm() {
     setTaskInput("");
@@ -244,10 +207,6 @@ export default function App() {
     setEditingGuestId(null);
   }
 
-  function toggleSection(section: SectionKey) {
-    setSectionsOpen((prev) => ({ ...prev, [section]: !prev[section] }));
-  }
-
   async function saveTask() {
     if (!taskInput.trim()) return;
 
@@ -260,6 +219,7 @@ export default function App() {
       note: taskNote.trim() || null,
       priority: taskPriority,
       updated_by: taskUpdatedBy,
+      updated_at: new Date().toISOString(),
     };
 
     try {
@@ -271,15 +231,13 @@ export default function App() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-
         const row = updated?.[0] as Task;
         setTasks((prev) => prev.map((t) => (t.id === row.id ? row : t)));
       } else {
         const inserted = await supabaseRequest("tasks", {
           method: "POST",
-          body: JSON.stringify([payload]),
+          body: JSON.stringify([{ ...payload, created_at: new Date().toISOString() }]),
         });
-
         const row = inserted?.[0] as Task;
         setTasks((prev) => [row, ...prev]);
       }
@@ -293,19 +251,17 @@ export default function App() {
   }
 
   async function toggleTask(task: Task) {
-    const nextDone = !task.done;
-    const nextStatus: TaskStatus = nextDone ? "Hotovo" : "To do";
-
     try {
       setError("");
+      const nextDone = !(task.done || task.status === "Hotovo");
       const updated = await supabaseRequest(`tasks?id=eq.${task.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           done: nextDone,
-          status: nextStatus,
+          status: nextDone ? "Hotovo" : "To do",
+          updated_at: new Date().toISOString(),
         }),
       });
-
       const row = updated?.[0] as Task;
       setTasks((prev) => prev.map((t) => (t.id === row.id ? row : t)));
     } catch (err) {
@@ -320,7 +276,6 @@ export default function App() {
         method: "DELETE",
         headers: { Prefer: "return=minimal" },
       });
-
       setTasks((prev) => prev.filter((t) => t.id !== id));
       if (editingTaskId === id) resetTaskForm();
     } catch (err) {
@@ -332,7 +287,7 @@ export default function App() {
     setTaskInput(task.text);
     setTaskDeadline(task.deadline || "");
     setTaskOwner(task.owner || "Oba");
-    setTaskStatus(task.status || (task.done ? "Hotovo" : "To do"));
+    setTaskStatus(task.status || "To do");
     setTaskNote(task.note || "");
     setTaskPriority(task.priority || "Střední");
     setTaskUpdatedBy((task.updated_by as Person) || "Oba");
@@ -342,12 +297,10 @@ export default function App() {
 
   async function saveBudgetItem() {
     if (!budgetName.trim()) return;
-
-    const resolvedPaymentStatus: PaymentStatus = fullyPaid
-      ? "Zaplaceno"
-      : Number(deposit) > 0
-      ? "Záloha"
-      : paymentStatus;
+    if ((Number(planned) || 0) < 0 || (Number(actual) || 0) < 0 || (Number(deposit) || 0) < 0) {
+      setError("Částky nesmí být záporné.");
+      return;
+    }
 
     const payload = {
       category,
@@ -359,9 +312,14 @@ export default function App() {
       owner: budgetOwner,
       vendor: vendor.trim() || null,
       due_date: dueDate || null,
-      payment_status: resolvedPaymentStatus,
+      payment_status: normalizePaymentStatus(
+        fullyPaid,
+        Number(deposit) || 0,
+        paymentStatus
+      ),
       note: budgetNote.trim() || null,
       updated_by: budgetUpdatedBy,
+      updated_at: new Date().toISOString(),
     };
 
     try {
@@ -373,7 +331,6 @@ export default function App() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-
         const row = updated?.[0] as BudgetItem;
         setBudgetItems((prev) =>
           prev.map((item) => (item.id === row.id ? row : item))
@@ -381,18 +338,15 @@ export default function App() {
       } else {
         const inserted = await supabaseRequest("budget", {
           method: "POST",
-          body: JSON.stringify([payload]),
+          body: JSON.stringify([{ ...payload, created_at: new Date().toISOString() }]),
         });
-
         const row = inserted?.[0] as BudgetItem;
         setBudgetItems((prev) => [row, ...prev]);
       }
 
       resetBudgetForm();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Chyba při ukládání rozpočtu"
-      );
+      setError(err instanceof Error ? err.message : "Chyba při ukládání rozpočtu");
     } finally {
       setSaving(false);
     }
@@ -405,13 +359,10 @@ export default function App() {
         method: "DELETE",
         headers: { Prefer: "return=minimal" },
       });
-
       setBudgetItems((prev) => prev.filter((item) => item.id !== id));
       if (editingBudgetId === id) resetBudgetForm();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Chyba při mazání rozpočtu"
-      );
+      setError(err instanceof Error ? err.message : "Chyba při mazání rozpočtu");
     }
   }
 
@@ -434,10 +385,14 @@ export default function App() {
 
   async function saveGuest() {
     if (!guestName.trim()) return;
+    if ((Number(guestCount) || 1) < 1) {
+      setError("Počet osob musí být alespoň 1.");
+      return;
+    }
 
     const payload = {
       name: guestName.trim(),
-      confirmed: guestRsvp === "Potvrzeno",
+      confirmed: normalizeGuestConfirmed(guestRsvp),
       note: guestNote.trim() || null,
       side: guestSide,
       rsvp_status: guestRsvp,
@@ -445,6 +400,7 @@ export default function App() {
       accommodation: guestAccommodation,
       child: guestChild,
       updated_by: guestUpdatedBy,
+      updated_at: new Date().toISOString(),
     };
 
     try {
@@ -456,15 +412,13 @@ export default function App() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-
         const row = updated?.[0] as Guest;
         setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
       } else {
         const inserted = await supabaseRequest("guests", {
           method: "POST",
-          body: JSON.stringify([payload]),
+          body: JSON.stringify([{ ...payload, created_at: new Date().toISOString() }]),
         });
-
         const row = inserted?.[0] as Guest;
         setGuests((prev) => [row, ...prev]);
       }
@@ -478,19 +432,17 @@ export default function App() {
   }
 
   async function toggleGuest(guest: Guest) {
-    const nextConfirmed = !guest.confirmed;
-    const nextRsvp: RsvpStatus = nextConfirmed ? "Potvrzeno" : "Bez odpovědi";
-
     try {
       setError("");
+      const nextConfirmed = !guest.confirmed;
       const updated = await supabaseRequest(`guests?id=eq.${guest.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           confirmed: nextConfirmed,
-          rsvp_status: nextRsvp,
+          rsvp_status: nextConfirmed ? "Potvrzeno" : "Bez odpovědi",
+          updated_at: new Date().toISOString(),
         }),
       });
-
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
     } catch (err) {
@@ -505,7 +457,6 @@ export default function App() {
         method: "DELETE",
         headers: { Prefer: "return=minimal" },
       });
-
       setGuests((prev) => prev.filter((g) => g.id !== id));
       if (editingGuestId === id) resetGuestForm();
     } catch (err) {
@@ -517,9 +468,7 @@ export default function App() {
     setGuestName(guest.name);
     setGuestNote(guest.note || "");
     setGuestSide(guest.side || "Společní");
-    setGuestRsvp(
-      guest.rsvp_status || (guest.confirmed ? "Potvrzeno" : "Bez odpovědi")
-    );
+    setGuestRsvp(guest.rsvp_status || "Bez odpovědi");
     setGuestCount(String(guest.guest_count || 1));
     setGuestAccommodation(Boolean(guest.accommodation));
     setGuestChild(Boolean(guest.child));
@@ -528,141 +477,32 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function remaining(item: BudgetItem) {
-    if (item.fully_paid || item.payment_status === "Zaplaceno") return 0;
-    return Math.max(item.actual - item.deposit, 0);
-  }
-
   const filteredTasks = useMemo(() => {
     let list = [...tasks];
-
-    if (taskOwnerFilter !== "Vše") {
-      list = list.filter((t) => t.owner === taskOwnerFilter);
-    }
-    if (taskStatusFilter !== "Vše") {
-      list = list.filter((t) => t.status === taskStatusFilter);
-    }
-    if (taskPriorityFilter !== "Vše") {
-      list = list.filter((t) => t.priority === taskPriorityFilter);
-    }
-
-    list.sort((a, b) => {
-      if (taskSort === "deadline") {
-        return (a.deadline || "9999-12-31").localeCompare(b.deadline || "9999-12-31");
-      }
-      if (taskSort === "owner") {
-        return a.owner.localeCompare(b.owner);
-      }
-      const order: Record<TaskPriority, number> = {
-        "Vysoká": 0,
-        "Střední": 1,
-        "Nízká": 2,
-      };
-      return order[a.priority] - order[b.priority];
-    });
-
-    return list;
+    if (taskOwnerFilter !== "Vše") list = list.filter((t) => t.owner === taskOwnerFilter);
+    if (taskStatusFilter !== "Vše") list = list.filter((t) => t.status === taskStatusFilter);
+    if (taskPriorityFilter !== "Vše") list = list.filter((t) => t.priority === taskPriorityFilter);
+    return sortTasks(list, taskSort);
   }, [tasks, taskOwnerFilter, taskStatusFilter, taskPriorityFilter, taskSort]);
 
   const filteredBudget = useMemo(() => {
     let list = [...budgetItems];
-
-    if (budgetCategoryFilter !== "Vše") {
-      list = list.filter((b) => b.category === budgetCategoryFilter);
-    }
-    if (budgetPaymentFilter !== "Vše") {
-      list = list.filter((b) => b.payment_status === budgetPaymentFilter);
-    }
-    if (budgetOwnerFilter !== "Vše") {
-      list = list.filter((b) => b.owner === budgetOwnerFilter);
-    }
-
-    list.sort((a, b) => {
-      if (budgetSort === "due_date") {
-        return (a.due_date || "9999-12-31").localeCompare(b.due_date || "9999-12-31");
-      }
-      if (budgetSort === "category") {
-        return a.category.localeCompare(b.category);
-      }
-      return remaining(b) - remaining(a);
-    });
-
-    return list;
+    if (budgetCategoryFilter !== "Vše") list = list.filter((b) => b.category === budgetCategoryFilter);
+    if (budgetPaymentFilter !== "Vše") list = list.filter((b) => b.payment_status === budgetPaymentFilter);
+    if (budgetOwnerFilter !== "Vše") list = list.filter((b) => b.owner === budgetOwnerFilter);
+    return sortBudget(list, budgetSort);
   }, [budgetItems, budgetCategoryFilter, budgetPaymentFilter, budgetOwnerFilter, budgetSort]);
 
   const filteredGuests = useMemo(() => {
     let list = [...guests];
-
-    if (guestSideFilter !== "Vše") {
-      list = list.filter((g) => g.side === guestSideFilter);
-    }
-    if (guestRsvpFilter !== "Vše") {
-      list = list.filter((g) => g.rsvp_status === guestRsvpFilter);
-    }
-
+    if (guestSideFilter !== "Vše") list = list.filter((g) => g.side === guestSideFilter);
+    if (guestRsvpFilter !== "Vše") list = list.filter((g) => g.rsvp_status === guestRsvpFilter);
     return list;
   }, [guests, guestSideFilter, guestRsvpFilter]);
 
-  const taskStats = useMemo(() => {
-    const completed = tasks.filter((t) => t.status === "Hotovo" || t.done).length;
-    const waiting = tasks.filter((t) => t.status === "Čeká").length;
-    const high = tasks.filter((t) => t.priority === "Vysoká").length;
-    const byOwner = {
-      Ondra: tasks.filter((t) => t.owner === "Ondra").length,
-      Kája: tasks.filter((t) => t.owner === "Kája").length,
-      Oba: tasks.filter((t) => t.owner === "Oba").length,
-    };
-    return {
-      total: tasks.length,
-      completed,
-      pending: tasks.length - completed,
-      waiting,
-      high,
-      byOwner,
-    };
-  }, [tasks]);
-
-  const budgetStats = useMemo(() => {
-    const totalPlanned = budgetItems.reduce((s, i) => s + i.planned, 0);
-    const totalActual = budgetItems.reduce((s, i) => s + i.actual, 0);
-    const totalDeposit = budgetItems.reduce((s, i) => s + i.deposit, 0);
-    const totalRemaining = budgetItems.reduce((s, i) => s + remaining(i), 0);
-    const totalPaid = totalActual - totalRemaining;
-    const overdue = budgetItems.filter(
-      (i) =>
-        i.due_date &&
-        new Date(i.due_date).getTime() < Date.now() &&
-        i.payment_status !== "Zaplaceno"
-    ).length;
-
-    return {
-      totalPlanned,
-      totalActual,
-      totalDeposit,
-      totalRemaining,
-      totalPaid,
-      overdue,
-    };
-  }, [budgetItems]);
-
-  const guestStats = useMemo(() => {
-    const confirmed = guests.filter((g) => g.rsvp_status === "Potvrzeno").length;
-    const pending = guests.filter((g) => g.rsvp_status === "Bez odpovědi").length;
-    const declined = guests.filter((g) => g.rsvp_status === "Odmítl").length;
-    const totalPeople = guests.reduce((sum, g) => sum + (g.guest_count || 1), 0);
-    const sleeping = guests.filter((g) => g.accommodation).length;
-    const children = guests.filter((g) => g.child).length;
-
-    return {
-      total: guests.length,
-      confirmed,
-      pending,
-      declined,
-      totalPeople,
-      sleeping,
-      children,
-    };
-  }, [guests]);
+  const taskStats = useMemo(() => getTaskStats(tasks), [tasks]);
+  const budgetStats = useMemo(() => getBudgetStats(budgetItems), [budgetItems]);
+  const guestStats = useMemo(() => getGuestStats(guests), [guests]);
 
   const recentItems = useMemo(() => {
     return {
@@ -672,16 +512,16 @@ export default function App() {
     };
   }, [tasks, budgetItems, guests]);
 
-  if (loading) {
-    return <div style={loadingStyle}>Načítám data ze Supabase…</div>;
-  }
+  if (loading) return <div style={loadingStyle}>Načítám data ze Supabase…</div>;
 
   return (
     <div style={containerStyle}>
       <h1 style={titleStyle}>💍 Svatba planner</h1>
 
       <div style={topBarStyle}>
-        <button onClick={loadAll} style={primaryButtonStyle}>Obnovit data</button>
+        <button onClick={loadAll} style={primaryButtonStyle} disabled={loading || saving}>
+          Obnovit data
+        </button>
         <span style={statusStyle}>{saving ? "Ukládám…" : "Připraveno"}</span>
       </div>
 
@@ -691,7 +531,6 @@ export default function App() {
         <button onClick={() => toggleSection("dashboard")} style={sectionToggleStyle}>
           Přehled pro vás dva {sectionsOpen.dashboard ? "▲" : "▼"}
         </button>
-
         {sectionsOpen.dashboard && (
           <div style={cardListStyle}>
             <div style={cardStyle}>
@@ -749,7 +588,6 @@ export default function App() {
         <button onClick={() => toggleSection("tasks")} style={sectionToggleStyle}>
           Checklist {sectionsOpen.tasks ? "▲" : "▼"}
         </button>
-
         {sectionsOpen.tasks && (
           <>
             <div style={statsWrapStyle}>
@@ -760,152 +598,59 @@ export default function App() {
             </div>
 
             <div style={formStackStyle}>
-              <input
-                value={taskInput}
-                onChange={(e) => setTaskInput(e.target.value)}
-                placeholder="Např. zamluvit místo"
-                style={inputStyle}
-              />
-
-              <select
-                value={taskOwner}
-                onChange={(e) => setTaskOwner(e.target.value as Person)}
-                style={inputStyle}
-              >
-                {people.map((person) => (
-                  <option key={person} value={person}>
-                    {person}
-                  </option>
-                ))}
+              <input value={taskInput} onChange={(e) => setTaskInput(e.target.value)} placeholder="Např. zamluvit místo" style={inputStyle} />
+              <select value={taskOwner} onChange={(e) => setTaskOwner(e.target.value as Person)} style={inputStyle}>
+                {people.map((person) => <option key={person} value={person}>{person}</option>)}
               </select>
-
-              <select
-                value={taskStatus}
-                onChange={(e) => setTaskStatus(e.target.value as TaskStatus)}
-                style={inputStyle}
-              >
-                {taskStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
+              <select value={taskStatus} onChange={(e) => setTaskStatus(e.target.value as TaskStatus)} style={inputStyle}>
+                {taskStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
-
-              <select
-                value={taskPriority}
-                onChange={(e) => setTaskPriority(e.target.value as TaskPriority)}
-                style={inputStyle}
-              >
-                {taskPriorities.map((priority) => (
-                  <option key={priority} value={priority}>
-                    Priorita: {priority}
-                  </option>
-                ))}
+              <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value as TaskPriority)} style={inputStyle}>
+                {taskPriorities.map((priority) => <option key={priority} value={priority}>Priorita: {priority}</option>)}
               </select>
-
-              <select
-                value={taskUpdatedBy}
-                onChange={(e) => setTaskUpdatedBy(e.target.value as Person)}
-                style={inputStyle}
-              >
-                {people.map((person) => (
-                  <option key={person} value={person}>
-                    Update dělal: {person}
-                  </option>
-                ))}
+              <select value={taskUpdatedBy} onChange={(e) => setTaskUpdatedBy(e.target.value as Person)} style={inputStyle}>
+                {people.map((person) => <option key={person} value={person}>Update dělal: {person}</option>)}
               </select>
-
-              <input
-                type="date"
-                value={taskDeadline}
-                onChange={(e) => setTaskDeadline(e.target.value)}
-                style={inputStyle}
-              />
-
-              <input
-                value={taskNote}
-                onChange={(e) => setTaskNote(e.target.value)}
-                placeholder="Komentář / poznámka"
-                style={inputStyle}
-              />
-
+              <input type="date" value={taskDeadline} onChange={(e) => setTaskDeadline(e.target.value)} style={inputStyle} />
+              <input value={taskNote} onChange={(e) => setTaskNote(e.target.value)} placeholder="Komentář / poznámka" style={inputStyle} />
               <div style={buttonRowStyle}>
-                <button onClick={saveTask} style={primaryButtonStyle}>
+                <button onClick={saveTask} style={primaryButtonStyle} disabled={saving}>
                   {editingTaskId ? "Uložit" : "Přidat"}
                 </button>
-                {editingTaskId && (
-                  <button onClick={resetTaskForm} style={secondaryButtonStyle}>
-                    Zrušit
-                  </button>
-                )}
+                {editingTaskId && <button onClick={resetTaskForm} style={secondaryButtonStyle}>Zrušit</button>}
               </div>
             </div>
 
             <div style={filterCardStyle}>
               <div style={filterTitleStyle}>Filtry a řazení</div>
-
               <div style={chipsWrapStyle}>
                 <span style={filterLabelStyle}>Vlastník:</span>
-                <button
-                  style={chipStyle(taskOwnerFilter === "Vše")}
-                  onClick={() => setTaskOwnerFilter("Vše")}
-                >
-                  Vše
-                </button>
+                <button style={chipStyle(taskOwnerFilter === "Vše")} onClick={() => setTaskOwnerFilter("Vše")}>Vše</button>
                 {people.map((person) => (
-                  <button
-                    key={person}
-                    style={chipStyle(taskOwnerFilter === person)}
-                    onClick={() => setTaskOwnerFilter(person)}
-                  >
+                  <button key={person} style={chipStyle(taskOwnerFilter === person)} onClick={() => setTaskOwnerFilter(person)}>
                     {person}
                   </button>
                 ))}
               </div>
-
               <div style={chipsWrapStyle}>
                 <span style={filterLabelStyle}>Stav:</span>
-                <button
-                  style={chipStyle(taskStatusFilter === "Vše")}
-                  onClick={() => setTaskStatusFilter("Vše")}
-                >
-                  Vše
-                </button>
+                <button style={chipStyle(taskStatusFilter === "Vše")} onClick={() => setTaskStatusFilter("Vše")}>Vše</button>
                 {taskStatuses.map((status) => (
-                  <button
-                    key={status}
-                    style={chipStyle(taskStatusFilter === status)}
-                    onClick={() => setTaskStatusFilter(status)}
-                  >
+                  <button key={status} style={chipStyle(taskStatusFilter === status)} onClick={() => setTaskStatusFilter(status)}>
                     {status}
                   </button>
                 ))}
               </div>
-
               <div style={chipsWrapStyle}>
                 <span style={filterLabelStyle}>Priorita:</span>
-                <button
-                  style={chipStyle(taskPriorityFilter === "Vše")}
-                  onClick={() => setTaskPriorityFilter("Vše")}
-                >
-                  Vše
-                </button>
+                <button style={chipStyle(taskPriorityFilter === "Vše")} onClick={() => setTaskPriorityFilter("Vše")}>Vše</button>
                 {taskPriorities.map((priority) => (
-                  <button
-                    key={priority}
-                    style={chipStyle(taskPriorityFilter === priority)}
-                    onClick={() => setTaskPriorityFilter(priority)}
-                  >
+                  <button key={priority} style={chipStyle(taskPriorityFilter === priority)} onClick={() => setTaskPriorityFilter(priority)}>
                     {priority}
                   </button>
                 ))}
               </div>
-
-              <select
-                value={taskSort}
-                onChange={(e) => setTaskSort(e.target.value as typeof taskSort)}
-                style={inputStyle}
-              >
+              <select value={taskSort} onChange={(e) => setTaskSort(e.target.value as typeof taskSort)} style={inputStyle}>
                 <option value="deadline">Řadit podle deadline</option>
                 <option value="owner">Řadit podle vlastníka</option>
                 <option value="priority">Řadit podle priority</option>
@@ -914,7 +659,6 @@ export default function App() {
 
             <div style={cardListStyle}>
               {filteredTasks.length === 0 && <div style={emptyStyle}>Žádné úkoly pro aktuální filtr.</div>}
-
               {filteredTasks.map((task) => (
                 <div key={task.id} style={cardStyle}>
                   <div style={badgeRowStyle}>
@@ -922,48 +666,19 @@ export default function App() {
                     <span style={badgeStyle}>{task.status}</span>
                     <span style={badgeStyle}>{task.priority}</span>
                   </div>
-
-                  <div style={cardTopRowStyle}>
-                    <label style={checkboxRowStyle}>
-                      <input
-                        type="checkbox"
-                        checked={task.done || task.status === "Hotovo"}
-                        onChange={() => toggleTask(task)}
-                      />
-                      <span
-                        style={{
-                          ...cardTitleStyle,
-                          textDecoration:
-                            task.done || task.status === "Hotovo"
-                              ? "line-through"
-                              : "none",
-                          opacity: task.done || task.status === "Hotovo" ? 0.7 : 1,
-                        }}
-                      >
-                        {task.text}
-                      </span>
-                    </label>
-                  </div>
-
+                  <div style={cardTitleStyle}>{task.text}</div>
                   <div style={metaGridStyle}>
                     <div>Deadline: <strong>{formatDate(task.deadline)}</strong></div>
                     <div>Komentář: <strong>{task.note || "-"}</strong></div>
                     <div>Poslední update: <strong>{task.updated_by || "-"}</strong></div>
+                    <div>Upraveno: <strong>{formatDate(task.updated_at)}</strong></div>
                   </div>
-
                   <div style={buttonRowStyle}>
-                    <button
-                      onClick={() => startEditTask(task)}
-                      style={secondaryButtonStyle}
-                    >
-                      Upravit
+                    <button onClick={() => toggleTask(task)} style={secondaryButtonStyle}>
+                      {task.done || task.status === "Hotovo" ? "Označit zpět" : "Označit hotovo"}
                     </button>
-                    <button
-                      onClick={() => deleteTask(task.id)}
-                      style={dangerButtonStyle}
-                    >
-                      Smazat
-                    </button>
+                    <button onClick={() => startEditTask(task)} style={secondaryButtonStyle}>Upravit</button>
+                    <button onClick={() => deleteTask(task.id)} style={dangerButtonStyle}>Smazat</button>
                   </div>
                 </div>
               ))}
@@ -976,7 +691,6 @@ export default function App() {
         <button onClick={() => toggleSection("budget")} style={sectionToggleStyle}>
           Rozpočet {sectionsOpen.budget ? "▲" : "▼"}
         </button>
-
         {sectionsOpen.budget && (
           <>
             <div style={statsWrapStyle}>
@@ -988,192 +702,67 @@ export default function App() {
             </div>
 
             <div style={formStackStyle}>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as BudgetCategory)}
-                style={inputStyle}
-              >
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
+              <select value={category} onChange={(e) => setCategory(e.target.value as BudgetCategory)} style={inputStyle}>
+                {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
               </select>
-
-              <input
-                value={budgetName}
-                onChange={(e) => setBudgetName(e.target.value)}
-                placeholder="Položka"
-                style={inputStyle}
-              />
-
-              <select
-                value={budgetOwner}
-                onChange={(e) => setBudgetOwner(e.target.value as Person)}
-                style={inputStyle}
-              >
-                {people.map((person) => (
-                  <option key={person} value={person}>
-                    Řeší: {person}
-                  </option>
-                ))}
+              <input value={budgetName} onChange={(e) => setBudgetName(e.target.value)} placeholder="Položka" style={inputStyle} />
+              <select value={budgetOwner} onChange={(e) => setBudgetOwner(e.target.value as Person)} style={inputStyle}>
+                {people.map((person) => <option key={person} value={person}>Řeší: {person}</option>)}
               </select>
-
-              <input
-                value={vendor}
-                onChange={(e) => setVendor(e.target.value)}
-                placeholder="Dodavatel / kontakt"
-                style={inputStyle}
-              />
-
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                style={inputStyle}
-              />
-
-              <select
-                value={paymentStatus}
-                onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
-                style={inputStyle}
-              >
-                {paymentStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    Stav platby: {status}
-                  </option>
-                ))}
+              <input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Dodavatel / kontakt" style={inputStyle} />
+              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
+              <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)} style={inputStyle}>
+                {paymentStatuses.map((status) => <option key={status} value={status}>Stav platby: {status}</option>)}
               </select>
-
-              <input
-                type="number"
-                value={planned}
-                onChange={(e) => setPlanned(e.target.value)}
-                placeholder="Plánovaná cena"
-                style={inputStyle}
-              />
-
-              <input
-                type="number"
-                value={actual}
-                onChange={(e) => setActual(e.target.value)}
-                placeholder="Skutečná cena"
-                style={inputStyle}
-              />
-
-              <input
-                type="number"
-                value={deposit}
-                onChange={(e) => setDeposit(e.target.value)}
-                placeholder="Záloha"
-                style={inputStyle}
-              />
-
+              <input type="number" value={planned} onChange={(e) => setPlanned(e.target.value)} placeholder="Plánovaná cena" style={inputStyle} />
+              <input type="number" value={actual} onChange={(e) => setActual(e.target.value)} placeholder="Skutečná cena" style={inputStyle} />
+              <input type="number" value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="Záloha" style={inputStyle} />
               <label style={checkboxLineStyle}>
-                <input
-                  type="checkbox"
-                  checked={fullyPaid}
-                  onChange={(e) => setFullyPaid(e.target.checked)}
-                />
+                <input type="checkbox" checked={fullyPaid} onChange={(e) => setFullyPaid(e.target.checked)} />
                 Zaplaceno celé
               </label>
-
-              <select
-                value={budgetUpdatedBy}
-                onChange={(e) => setBudgetUpdatedBy(e.target.value as Person)}
-                style={inputStyle}
-              >
-                {people.map((person) => (
-                  <option key={person} value={person}>
-                    Update dělal: {person}
-                  </option>
-                ))}
+              <select value={budgetUpdatedBy} onChange={(e) => setBudgetUpdatedBy(e.target.value as Person)} style={inputStyle}>
+                {people.map((person) => <option key={person} value={person}>Update dělal: {person}</option>)}
               </select>
-
-              <input
-                value={budgetNote}
-                onChange={(e) => setBudgetNote(e.target.value)}
-                placeholder="Komentář / poznámka"
-                style={inputStyle}
-              />
-
+              <input value={budgetNote} onChange={(e) => setBudgetNote(e.target.value)} placeholder="Komentář / poznámka" style={inputStyle} />
               <div style={buttonRowStyle}>
-                <button onClick={saveBudgetItem} style={primaryButtonStyle}>
+                <button onClick={saveBudgetItem} style={primaryButtonStyle} disabled={saving}>
                   {editingBudgetId ? "Uložit" : "Přidat"}
                 </button>
-                {editingBudgetId && (
-                  <button onClick={resetBudgetForm} style={secondaryButtonStyle}>
-                    Zrušit
-                  </button>
-                )}
+                {editingBudgetId && <button onClick={resetBudgetForm} style={secondaryButtonStyle}>Zrušit</button>}
               </div>
             </div>
 
             <div style={filterCardStyle}>
               <div style={filterTitleStyle}>Filtry a řazení</div>
-
               <div style={chipsWrapStyle}>
                 <span style={filterLabelStyle}>Kategorie:</span>
-                <button
-                  style={chipStyle(budgetCategoryFilter === "Vše")}
-                  onClick={() => setBudgetCategoryFilter("Vše")}
-                >
-                  Vše
-                </button>
+                <button style={chipStyle(budgetCategoryFilter === "Vše")} onClick={() => setBudgetCategoryFilter("Vše")}>Vše</button>
                 {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    style={chipStyle(budgetCategoryFilter === cat)}
-                    onClick={() => setBudgetCategoryFilter(cat)}
-                  >
+                  <button key={cat} style={chipStyle(budgetCategoryFilter === cat)} onClick={() => setBudgetCategoryFilter(cat)}>
                     {cat}
                   </button>
                 ))}
               </div>
-
               <div style={chipsWrapStyle}>
                 <span style={filterLabelStyle}>Platba:</span>
-                <button
-                  style={chipStyle(budgetPaymentFilter === "Vše")}
-                  onClick={() => setBudgetPaymentFilter("Vše")}
-                >
-                  Vše
-                </button>
+                <button style={chipStyle(budgetPaymentFilter === "Vše")} onClick={() => setBudgetPaymentFilter("Vše")}>Vše</button>
                 {paymentStatuses.map((status) => (
-                  <button
-                    key={status}
-                    style={chipStyle(budgetPaymentFilter === status)}
-                    onClick={() => setBudgetPaymentFilter(status)}
-                  >
+                  <button key={status} style={chipStyle(budgetPaymentFilter === status)} onClick={() => setBudgetPaymentFilter(status)}>
                     {status}
                   </button>
                 ))}
               </div>
-
               <div style={chipsWrapStyle}>
                 <span style={filterLabelStyle}>Řeší:</span>
-                <button
-                  style={chipStyle(budgetOwnerFilter === "Vše")}
-                  onClick={() => setBudgetOwnerFilter("Vše")}
-                >
-                  Vše
-                </button>
+                <button style={chipStyle(budgetOwnerFilter === "Vše")} onClick={() => setBudgetOwnerFilter("Vše")}>Vše</button>
                 {people.map((person) => (
-                  <button
-                    key={person}
-                    style={chipStyle(budgetOwnerFilter === person)}
-                    onClick={() => setBudgetOwnerFilter(person)}
-                  >
+                  <button key={person} style={chipStyle(budgetOwnerFilter === person)} onClick={() => setBudgetOwnerFilter(person)}>
                     {person}
                   </button>
                 ))}
               </div>
-
-              <select
-                value={budgetSort}
-                onChange={(e) => setBudgetSort(e.target.value as typeof budgetSort)}
-                style={inputStyle}
-              >
+              <select value={budgetSort} onChange={(e) => setBudgetSort(e.target.value as typeof budgetSort)} style={inputStyle}>
                 <option value="due_date">Řadit podle splatnosti</option>
                 <option value="category">Řadit podle kategorie</option>
                 <option value="remaining">Řadit podle zbývá doplatit</option>
@@ -1181,10 +770,7 @@ export default function App() {
             </div>
 
             <div style={cardListStyle}>
-              {filteredBudget.length === 0 && (
-                <div style={emptyStyle}>Žádné položky rozpočtu pro aktuální filtr.</div>
-              )}
-
+              {filteredBudget.length === 0 && <div style={emptyStyle}>Žádné položky rozpočtu pro aktuální filtr.</div>}
               {filteredBudget.map((item) => (
                 <div key={item.id} style={cardStyle}>
                   <div style={badgeRowStyle}>
@@ -1192,33 +778,21 @@ export default function App() {
                     <span style={badgeStyle}>{item.owner || "Oba"}</span>
                     <span style={badgeStyle}>{item.payment_status || "Nezaplaceno"}</span>
                   </div>
-
                   <div style={cardTitleStyle}>{item.name}</div>
-
                   <div style={metaGridStyle}>
                     <div>Dodavatel: <strong>{item.vendor || "-"}</strong></div>
                     <div>Splatnost: <strong>{formatDate(item.due_date)}</strong></div>
                     <div>Plán: <strong>{item.planned} Kč</strong></div>
                     <div>Skutečnost: <strong>{item.actual} Kč</strong></div>
                     <div>Záloha: <strong>{item.deposit} Kč</strong></div>
-                    <div>Zbývá: <strong>{remaining(item)} Kč</strong></div>
+                    <div>Zbývá: <strong>{getRemaining(item)} Kč</strong></div>
                     <div>Komentář: <strong>{item.note || "-"}</strong></div>
                     <div>Poslední update: <strong>{item.updated_by || "-"}</strong></div>
+                    <div>Upraveno: <strong>{formatDate(item.updated_at)}</strong></div>
                   </div>
-
                   <div style={buttonRowStyle}>
-                    <button
-                      onClick={() => startEditBudgetItem(item)}
-                      style={secondaryButtonStyle}
-                    >
-                      Upravit
-                    </button>
-                    <button
-                      onClick={() => deleteBudgetItem(item.id)}
-                      style={dangerButtonStyle}
-                    >
-                      Smazat
-                    </button>
+                    <button onClick={() => startEditBudgetItem(item)} style={secondaryButtonStyle}>Upravit</button>
+                    <button onClick={() => deleteBudgetItem(item.id)} style={dangerButtonStyle}>Smazat</button>
                   </div>
                 </div>
               ))}
@@ -1231,7 +805,6 @@ export default function App() {
         <button onClick={() => toggleSection("guests")} style={sectionToggleStyle}>
           Hosté {sectionsOpen.guests ? "▲" : "▼"}
         </button>
-
         {sectionsOpen.guests && (
           <>
             <div style={statsWrapStyle}>
@@ -1245,131 +818,50 @@ export default function App() {
             </div>
 
             <div style={formStackStyle}>
-              <input
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                placeholder="Jméno hosta"
-                style={inputStyle}
-              />
-
-              <select
-                value={guestSide}
-                onChange={(e) => setGuestSide(e.target.value as GuestSide)}
-                style={inputStyle}
-              >
-                {guestSides.map((side) => (
-                  <option key={side} value={side}>
-                    Strana: {side}
-                  </option>
-                ))}
+              <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Jméno hosta" style={inputStyle} />
+              <select value={guestSide} onChange={(e) => setGuestSide(e.target.value as GuestSide)} style={inputStyle}>
+                {guestSides.map((side) => <option key={side} value={side}>Strana: {side}</option>)}
               </select>
-
-              <select
-                value={guestRsvp}
-                onChange={(e) => setGuestRsvp(e.target.value as RsvpStatus)}
-                style={inputStyle}
-              >
-                {rsvpStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    RSVP: {status}
-                  </option>
-                ))}
+              <select value={guestRsvp} onChange={(e) => setGuestRsvp(e.target.value as RsvpStatus)} style={inputStyle}>
+                {rsvpStatuses.map((status) => <option key={status} value={status}>RSVP: {status}</option>)}
               </select>
-
-              <input
-                type="number"
-                min="1"
-                value={guestCount}
-                onChange={(e) => setGuestCount(e.target.value)}
-                placeholder="Počet osob"
-                style={inputStyle}
-              />
-
+              <input type="number" min="1" value={guestCount} onChange={(e) => setGuestCount(e.target.value)} placeholder="Počet osob" style={inputStyle} />
               <label style={checkboxLineStyle}>
-                <input
-                  type="checkbox"
-                  checked={guestAccommodation}
-                  onChange={(e) => setGuestAccommodation(e.target.checked)}
-                />
+                <input type="checkbox" checked={guestAccommodation} onChange={(e) => setGuestAccommodation(e.target.checked)} />
                 Bude přespávat
               </label>
-
               <label style={checkboxLineStyle}>
-                <input
-                  type="checkbox"
-                  checked={guestChild}
-                  onChange={(e) => setGuestChild(e.target.checked)}
-                />
+                <input type="checkbox" checked={guestChild} onChange={(e) => setGuestChild(e.target.checked)} />
                 Je to dítě
               </label>
-
-              <select
-                value={guestUpdatedBy}
-                onChange={(e) => setGuestUpdatedBy(e.target.value as Person)}
-                style={inputStyle}
-              >
-                {people.map((person) => (
-                  <option key={person} value={person}>
-                    Update dělal: {person}
-                  </option>
-                ))}
+              <select value={guestUpdatedBy} onChange={(e) => setGuestUpdatedBy(e.target.value as Person)} style={inputStyle}>
+                {people.map((person) => <option key={person} value={person}>Update dělal: {person}</option>)}
               </select>
-
-              <input
-                value={guestNote}
-                onChange={(e) => setGuestNote(e.target.value)}
-                placeholder="Komentář / poznámka"
-                style={inputStyle}
-              />
-
+              <input value={guestNote} onChange={(e) => setGuestNote(e.target.value)} placeholder="Komentář / poznámka" style={inputStyle} />
               <div style={buttonRowStyle}>
-                <button onClick={saveGuest} style={primaryButtonStyle}>
+                <button onClick={saveGuest} style={primaryButtonStyle} disabled={saving}>
                   {editingGuestId ? "Uložit" : "Přidat"}
                 </button>
-                {editingGuestId && (
-                  <button onClick={resetGuestForm} style={secondaryButtonStyle}>
-                    Zrušit
-                  </button>
-                )}
+                {editingGuestId && <button onClick={resetGuestForm} style={secondaryButtonStyle}>Zrušit</button>}
               </div>
             </div>
 
             <div style={filterCardStyle}>
               <div style={filterTitleStyle}>Filtry</div>
-
               <div style={chipsWrapStyle}>
                 <span style={filterLabelStyle}>Strana:</span>
-                <button
-                  style={chipStyle(guestSideFilter === "Vše")}
-                  onClick={() => setGuestSideFilter("Vše")}
-                >
-                  Vše
-                </button>
+                <button style={chipStyle(guestSideFilter === "Vše")} onClick={() => setGuestSideFilter("Vše")}>Vše</button>
                 {guestSides.map((side) => (
-                  <button
-                    key={side}
-                    style={chipStyle(guestSideFilter === side)}
-                    onClick={() => setGuestSideFilter(side)}
-                  >
+                  <button key={side} style={chipStyle(guestSideFilter === side)} onClick={() => setGuestSideFilter(side)}>
                     {side}
                   </button>
                 ))}
               </div>
-
               <div style={chipsWrapStyle}>
                 <span style={filterLabelStyle}>RSVP:</span>
-                <button
-                  style={chipStyle(guestRsvpFilter === "Vše")}
-                  onClick={() => setGuestRsvpFilter("Vše")}
-                >
-                  Vše
-                </button>
+                <button style={chipStyle(guestRsvpFilter === "Vše")} onClick={() => setGuestRsvpFilter("Vše")}>Vše</button>
                 {rsvpStatuses.map((status) => (
-                  <button
-                    key={status}
-                    style={chipStyle(guestRsvpFilter === status)}
-                    onClick={() => setGuestRsvpFilter(status)}
-                  >
+                  <button key={status} style={chipStyle(guestRsvpFilter === status)} onClick={() => setGuestRsvpFilter(status)}>
                     {status}
                   </button>
                 ))}
@@ -1378,7 +870,6 @@ export default function App() {
 
             <div style={cardListStyle}>
               {filteredGuests.length === 0 && <div style={emptyStyle}>Žádní hosté pro aktuální filtr.</div>}
-
               {filteredGuests.map((guest) => (
                 <div key={guest.id} style={cardStyle}>
                   <div style={badgeRowStyle}>
@@ -1386,39 +877,21 @@ export default function App() {
                     <span style={badgeStyle}>{guest.side || "Společní"}</span>
                     <span style={badgeStyle}>{guest.rsvp_status || "Bez odpovědi"}</span>
                   </div>
-
-                  <div style={cardTopRowStyle}>
-                    <label style={checkboxRowStyle}>
-                      <input
-                        type="checkbox"
-                        checked={guest.confirmed}
-                        onChange={() => toggleGuest(guest)}
-                      />
-                      <span style={cardTitleStyle}>{guest.name}</span>
-                    </label>
-                  </div>
-
+                  <div style={cardTitleStyle}>{guest.name}</div>
                   <div style={metaGridStyle}>
                     <div>Počet osob: <strong>{guest.guest_count || 1}</strong></div>
                     <div>Přespání: <strong>{guest.accommodation ? "Ano" : "Ne"}</strong></div>
                     <div>Dítě: <strong>{guest.child ? "Ano" : "Ne"}</strong></div>
                     <div>Komentář: <strong>{guest.note || "-"}</strong></div>
                     <div>Poslední update: <strong>{guest.updated_by || "-"}</strong></div>
+                    <div>Upraveno: <strong>{formatDate(guest.updated_at)}</strong></div>
                   </div>
-
                   <div style={buttonRowStyle}>
-                    <button
-                      onClick={() => startEditGuest(guest)}
-                      style={secondaryButtonStyle}
-                    >
-                      Upravit
+                    <button onClick={() => toggleGuest(guest)} style={secondaryButtonStyle}>
+                      {guest.confirmed ? "Zrušit potvrzení" : "Potvrdit"}
                     </button>
-                    <button
-                      onClick={() => deleteGuest(guest.id)}
-                      style={dangerButtonStyle}
-                    >
-                      Smazat
-                    </button>
+                    <button onClick={() => startEditGuest(guest)} style={secondaryButtonStyle}>Upravit</button>
+                    <button onClick={() => deleteGuest(guest.id)} style={dangerButtonStyle}>Smazat</button>
                   </div>
                 </div>
               ))}
@@ -1429,222 +902,3 @@ export default function App() {
     </div>
   );
 }
-
-const containerStyle: React.CSSProperties = {
-  padding: 16,
-  fontFamily: "Arial, sans-serif",
-  maxWidth: 760,
-  margin: "0 auto",
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 28,
-  marginBottom: 12,
-};
-
-const sectionStyle: React.CSSProperties = {
-  marginBottom: 28,
-};
-
-const topBarStyle: React.CSSProperties = {
-  marginBottom: 16,
-  display: "flex",
-  gap: 10,
-  flexWrap: "wrap",
-  alignItems: "center",
-};
-
-const statusStyle: React.CSSProperties = {
-  fontWeight: 600,
-};
-
-const loadingStyle: React.CSSProperties = {
-  padding: 24,
-  fontFamily: "Arial, sans-serif",
-};
-
-const errorStyle: React.CSSProperties = {
-  background: "#ffe5e5",
-  color: "#900",
-  padding: 12,
-  marginBottom: 16,
-  border: "1px solid #f0b3b3",
-  borderRadius: 10,
-};
-
-const sectionToggleStyle: React.CSSProperties = {
-  width: "100%",
-  textAlign: "left",
-  padding: "14px 16px",
-  borderRadius: 12,
-  border: "1px solid #ddd",
-  background: "#fafafa",
-  fontWeight: 800,
-  fontSize: 20,
-  marginBottom: 12,
-};
-
-const statsWrapStyle: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 8,
-  marginBottom: 14,
-};
-
-const statBoxStyle: React.CSSProperties = {
-  background: "#f3f3f3",
-  padding: "8px 12px",
-  borderRadius: 999,
-  fontWeight: 700,
-  fontSize: 14,
-};
-
-const formStackStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 10,
-  marginBottom: 16,
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: 12,
-  width: "100%",
-  boxSizing: "border-box",
-  borderRadius: 10,
-  border: "1px solid #ccc",
-  fontSize: 16,
-};
-
-const checkboxLineStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  fontWeight: 600,
-};
-
-const buttonRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "#111",
-  color: "#fff",
-  fontWeight: 700,
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: 10,
-  border: "1px solid #bbb",
-  background: "#f6f6f6",
-  fontWeight: 700,
-};
-
-const dangerButtonStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: 10,
-  border: "1px solid #d99",
-  background: "#fff5f5",
-  color: "#900",
-  fontWeight: 700,
-};
-
-const cardListStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 12,
-};
-
-const cardStyle: React.CSSProperties = {
-  border: "1px solid #ddd",
-  borderRadius: 14,
-  padding: 14,
-  background: "#fff",
-  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-};
-
-const cardTopRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 10,
-  marginBottom: 10,
-};
-
-const cardTitleStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 700,
-};
-
-const checkboxRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 10,
-  alignItems: "center",
-};
-
-const metaGridStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 8,
-  marginBottom: 12,
-  color: "#333",
-};
-
-const badgeStyle: React.CSSProperties = {
-  display: "inline-block",
-  background: "#eef2ff",
-  color: "#334",
-  padding: "6px 10px",
-  borderRadius: 999,
-  fontWeight: 700,
-  fontSize: 13,
-};
-
-const badgeRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-  marginBottom: 10,
-};
-
-const emptyStyle: React.CSSProperties = {
-  color: "#666",
-  padding: 8,
-};
-
-const filterCardStyle: React.CSSProperties = {
-  border: "1px solid #ddd",
-  borderRadius: 14,
-  padding: 14,
-  background: "#fafafa",
-  marginBottom: 16,
-  display: "grid",
-  gap: 12,
-};
-
-const filterTitleStyle: React.CSSProperties = {
-  fontWeight: 800,
-  fontSize: 16,
-};
-
-const chipsWrapStyle: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 8,
-  alignItems: "center",
-};
-
-const filterLabelStyle: React.CSSProperties = {
-  fontWeight: 700,
-};
-
-const chipStyle = (active: boolean): React.CSSProperties => ({
-  padding: "8px 12px",
-  borderRadius: 999,
-  border: active ? "1px solid #111" : "1px solid #ccc",
-  background: active ? "#111" : "#fff",
-  color: active ? "#fff" : "#333",
-  fontWeight: 700,
-});
