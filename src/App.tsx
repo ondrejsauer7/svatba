@@ -39,9 +39,8 @@ type Guest = {
   note: string | null;
 };
 
-const SUPABASE_URL = "https://tdnfyudautpjopvqlmzm.supabase.co";
-const SUPABASE_KEY =
-  "sb_publishable_1aWgzmfptC6nmEqjDyxGNg_HzW-Ejd0";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 
 const categories: BudgetCategory[] = [
   "Místo",
@@ -256,13 +255,10 @@ export default function App() {
       setError("");
 
       if (editingBudgetId) {
-        const updated = await supabaseRequest(
-          `budget?id=eq.${editingBudgetId}`,
-          {
-            method: "PATCH",
-            body: JSON.stringify(payload),
-          }
-        );
+        const updated = await supabaseRequest(`budget?id=eq.${editingBudgetId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
 
         const row = updated?.[0] as BudgetItem;
         setBudgetItems((prev) =>
@@ -433,36 +429,17 @@ export default function App() {
   }
 
   return (
-    <div
-      style={{
-        padding: 20,
-        fontFamily: "Arial, sans-serif",
-        maxWidth: 1200,
-        margin: "0 auto",
-      }}
-    >
+    <div style={containerStyle}>
       <h1>💍 Svatba planner</h1>
 
-      <div style={{ marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={topBarStyle}>
         <button onClick={loadAll}>Obnovit data</button>
         <span>{saving ? "Ukládám…" : "Připraveno"}</span>
       </div>
 
-      {error && (
-        <div
-          style={{
-            background: "#ffe5e5",
-            color: "#900",
-            padding: 12,
-            marginBottom: 16,
-            border: "1px solid #f0b3b3",
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {error && <div style={errorStyle}>{error}</div>}
 
-      <section style={{ marginBottom: 40 }}>
+      <section style={sectionStyle}>
         <h2>Checklist</h2>
 
         <div style={statsRow}>
@@ -490,47 +467,52 @@ export default function App() {
           {editingTaskId && <button onClick={resetTaskForm}>Zrušit</button>}
         </div>
 
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Hotovo</th>
-              <th style={thStyle}>Úkol</th>
-              <th style={thStyle}>Deadline</th>
-              <th style={thStyle}>Akce</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.map((task) => (
-              <tr key={task.id}>
+        <div style={tableWrapperStyle}>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Hotovo</th>
+                <th style={thStyle}>Úkol</th>
+                <th style={thStyle}>Deadline</th>
+                <th style={thStyle}>Akce</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((task) => (
                 <tr key={task.id}>
-  <td style={tdStyle}>
-    <input
-      type="checkbox"
-      checked={task.done}
-      onChange={() => toggleTask(task)}
-    />
-  </td>
+                  <td style={tdStyle}>
+                    <input
+                      type="checkbox"
+                      checked={task.done}
+                      onChange={() => toggleTask(task)}
+                    />
+                  </td>
 
-  <td style={tdStyle}>{task.text}</td>
+                  <td style={tdStyle}>{task.text}</td>
 
-  <td style={tdStyle}>
-    {task.deadline
-      ? new Date(task.deadline).toLocaleDateString("cs-CZ")
-      : "-"}
-  </td>
+                  <td style={tdStyle}>
+                    {task.deadline
+                      ? new Date(task.deadline).toLocaleDateString("cs-CZ")
+                      : "-"}
+                  </td>
 
-  <td style={tdStyle}>
-    <div style={actionRow}>
-      <button onClick={() => startEditTask(task)}>Upravit</button>
-      <button onClick={() => deleteTask(task.id)}>Smazat</button>
-    </div>
-  </td>
-</tr>
+                  <td style={tdStyle}>
+                    <div style={actionRow}>
+                      <button onClick={() => startEditTask(task)}>Upravit</button>
+                      <button onClick={() => deleteTask(task.id)}>Smazat</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <section style={{ marginBottom: 40 }}>
+      <section style={sectionStyle}>
         <h2>Rozpočet</h2>
 
-        <div style={statsRow}>
+        <div style={statsColumnMobile}>
           <div>Plán celkem: {budgetStats.totalPlanned} Kč</div>
           <div>Skutečnost celkem: {budgetStats.totalActual} Kč</div>
           <div>Zálohy celkem: {budgetStats.totalDeposit} Kč</div>
@@ -596,46 +578,48 @@ export default function App() {
           {editingBudgetId && <button onClick={resetBudgetForm}>Zrušit</button>}
         </div>
 
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Kategorie</th>
-              <th style={thStyle}>Položka</th>
-              <th style={thStyle}>Plán</th>
-              <th style={thStyle}>Skutečnost</th>
-              <th style={thStyle}>Záloha</th>
-              <th style={thStyle}>Zaplaceno celé</th>
-              <th style={thStyle}>Zbývá</th>
-              <th style={thStyle}>Akce</th>
-            </tr>
-          </thead>
-          <tbody>
-            {budgetItems.map((item) => (
-              <tr key={item.id}>
-                <td style={tdStyle}>{item.category}</td>
-                <td style={tdStyle}>{item.name}</td>
-                <td style={tdStyle}>{item.planned} Kč</td>
-                <td style={tdStyle}>{item.actual} Kč</td>
-                <td style={tdStyle}>{item.deposit} Kč</td>
-                <td style={tdStyle}>{item.fully_paid ? "Ano" : "Ne"}</td>
-                <td style={tdStyle}>{remaining(item)} Kč</td>
-                <td style={tdStyle}>
-                  <div style={actionRow}>
-                    <button onClick={() => startEditBudgetItem(item)}>
-                      Upravit
-                    </button>
-                    <button onClick={() => deleteBudgetItem(item.id)}>
-                      Smazat
-                    </button>
-                  </div>
-                </td>
+        <div style={tableWrapperStyle}>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Kategorie</th>
+                <th style={thStyle}>Položka</th>
+                <th style={thStyle}>Plán</th>
+                <th style={thStyle}>Skutečnost</th>
+                <th style={thStyle}>Záloha</th>
+                <th style={thStyle}>Zaplaceno celé</th>
+                <th style={thStyle}>Zbývá</th>
+                <th style={thStyle}>Akce</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {budgetItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={tdStyle}>{item.category}</td>
+                  <td style={tdStyle}>{item.name}</td>
+                  <td style={tdStyle}>{item.planned} Kč</td>
+                  <td style={tdStyle}>{item.actual} Kč</td>
+                  <td style={tdStyle}>{item.deposit} Kč</td>
+                  <td style={tdStyle}>{item.fully_paid ? "Ano" : "Ne"}</td>
+                  <td style={tdStyle}>{remaining(item)} Kč</td>
+                  <td style={tdStyle}>
+                    <div style={actionRow}>
+                      <button onClick={() => startEditBudgetItem(item)}>
+                        Upravit
+                      </button>
+                      <button onClick={() => deleteBudgetItem(item.id)}>
+                        Smazat
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
-      <section>
+      <section style={sectionStyle}>
         <h2>Hosté</h2>
 
         <div style={statsRow}>
@@ -677,48 +661,83 @@ export default function App() {
           {editingGuestId && <button onClick={resetGuestForm}>Zrušit</button>}
         </div>
 
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Potvrzeno</th>
-              <th style={thStyle}>Jméno</th>
-              <th style={thStyle}>Skupina</th>
-              <th style={thStyle}>Poznámka</th>
-              <th style={thStyle}>Akce</th>
-            </tr>
-          </thead>
-          <tbody>
-            {guests.map((guest) => (
-              <tr key={guest.id}>
-                <td style={tdStyle}>
-                  <input
-                    type="checkbox"
-                    checked={guest.confirmed}
-                    onChange={() => toggleGuest(guest)}
-                  />
-                </td>
-                <td style={tdStyle}>{guest.name}</td>
-                <td style={tdStyle}>{guest.group}</td>
-                <td style={tdStyle}>{guest.note || "-"}</td>
-                <td style={tdStyle}>
-                  <div style={actionRow}>
-                    <button onClick={() => startEditGuest(guest)}>Upravit</button>
-                    <button onClick={() => deleteGuest(guest.id)}>Smazat</button>
-                  </div>
-                </td>
+        <div style={tableWrapperStyle}>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Potvrzeno</th>
+                <th style={thStyle}>Jméno</th>
+                <th style={thStyle}>Skupina</th>
+                <th style={thStyle}>Poznámka</th>
+                <th style={thStyle}>Akce</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {guests.map((guest) => (
+                <tr key={guest.id}>
+                  <td style={tdStyle}>
+                    <input
+                      type="checkbox"
+                      checked={guest.confirmed}
+                      onChange={() => toggleGuest(guest)}
+                    />
+                  </td>
+                  <td style={tdStyle}>{guest.name}</td>
+                  <td style={tdStyle}>{guest.group}</td>
+                  <td style={tdStyle}>{guest.note || "-"}</td>
+                  <td style={tdStyle}>
+                    <div style={actionRow}>
+                      <button onClick={() => startEditGuest(guest)}>Upravit</button>
+                      <button onClick={() => deleteGuest(guest.id)}>Smazat</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
 }
 
+const containerStyle: React.CSSProperties = {
+  padding: 20,
+  fontFamily: "Arial, sans-serif",
+  maxWidth: 1200,
+  margin: "0 auto",
+};
+
+const sectionStyle: React.CSSProperties = {
+  marginBottom: 40,
+};
+
+const topBarStyle: React.CSSProperties = {
+  marginBottom: 16,
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  alignItems: "center",
+};
+
+const errorStyle: React.CSSProperties = {
+  background: "#ffe5e5",
+  color: "#900",
+  padding: 12,
+  marginBottom: 16,
+  border: "1px solid #f0b3b3",
+};
+
+const tableWrapperStyle: React.CSSProperties = {
+  overflowX: "auto",
+  WebkitOverflowScrolling: "touch",
+  marginTop: 16,
+};
+
 const tableStyle: React.CSSProperties = {
   width: "100%",
+  minWidth: 700,
   borderCollapse: "collapse",
-  marginTop: 16,
 };
 
 const thStyle: React.CSSProperties = {
@@ -747,6 +766,13 @@ const statsRow: React.CSSProperties = {
   fontWeight: "bold",
 };
 
+const statsColumnMobile: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+  fontWeight: "bold",
+};
+
 const actionRow: React.CSSProperties = {
   display: "flex",
   gap: 8,
@@ -757,6 +783,7 @@ const checkboxLabel: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
+  minWidth: 140,
 };
 
 const taskFormGrid: React.CSSProperties = {
