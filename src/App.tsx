@@ -14,7 +14,6 @@ import type {
 } from "./types";
 import { supabaseRequest } from "./lib/supabase";
 import {
-  formatDate,
   getBudgetStats,
   getGuestStats,
   getRemaining,
@@ -25,37 +24,18 @@ import {
   sortTasks,
 } from "./lib/utils";
 import {
-  badgeRowStyle,
-  badgeStyle,
-  buttonRowStyle,
-  cardListStyle,
-  cardStyle,
-  cardTitleStyle,
-  checkboxLineStyle,
-  checkboxRowStyle,
-  chipStyle,
-  chipsWrapStyle,
   containerStyle,
-  dangerButtonStyle,
-  emptyStyle,
   errorStyle,
-  filterCardStyle,
-  filterLabelStyle,
-  filterTitleStyle,
-  formStackStyle,
-  inputStyle,
   loadingStyle,
-  metaGridStyle,
   primaryButtonStyle,
-  secondaryButtonStyle,
-  sectionStyle,
-  sectionToggleStyle,
-  statBoxStyle,
-  statsWrapStyle,
   statusStyle,
   titleStyle,
   topBarStyle,
 } from "./ui";
+import DashboardSection from "./sections/DashboardSection";
+import TasksSection from "./sections/TasksSection";
+import BudgetSection from "./sections/BudgetSection";
+import GuestsSection from "./sections/GuestsSection";
 
 const people: Person[] = ["Ondra", "Kája", "Oba"];
 const taskStatuses: TaskStatus[] = ["To do", "Rozdělané", "Čeká", "Hotovo"];
@@ -231,13 +211,17 @@ export default function App() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
+
         const row = updated?.[0] as Task;
         setTasks((prev) => prev.map((t) => (t.id === row.id ? row : t)));
       } else {
         const inserted = await supabaseRequest("tasks", {
           method: "POST",
-          body: JSON.stringify([{ ...payload, created_at: new Date().toISOString() }]),
+          body: JSON.stringify([
+            { ...payload, created_at: new Date().toISOString() },
+          ]),
         });
+
         const row = inserted?.[0] as Task;
         setTasks((prev) => [row, ...prev]);
       }
@@ -254,6 +238,7 @@ export default function App() {
     try {
       setError("");
       const nextDone = !(task.done || task.status === "Hotovo");
+
       const updated = await supabaseRequest(`tasks?id=eq.${task.id}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -262,6 +247,7 @@ export default function App() {
           updated_at: new Date().toISOString(),
         }),
       });
+
       const row = updated?.[0] as Task;
       setTasks((prev) => prev.map((t) => (t.id === row.id ? row : t)));
     } catch (err) {
@@ -276,6 +262,7 @@ export default function App() {
         method: "DELETE",
         headers: { Prefer: "return=minimal" },
       });
+
       setTasks((prev) => prev.filter((t) => t.id !== id));
       if (editingTaskId === id) resetTaskForm();
     } catch (err) {
@@ -297,7 +284,11 @@ export default function App() {
 
   async function saveBudgetItem() {
     if (!budgetName.trim()) return;
-    if ((Number(planned) || 0) < 0 || (Number(actual) || 0) < 0 || (Number(deposit) || 0) < 0) {
+    if (
+      (Number(planned) || 0) < 0 ||
+      (Number(actual) || 0) < 0 ||
+      (Number(deposit) || 0) < 0
+    ) {
       setError("Částky nesmí být záporné.");
       return;
     }
@@ -331,6 +322,7 @@ export default function App() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
+
         const row = updated?.[0] as BudgetItem;
         setBudgetItems((prev) =>
           prev.map((item) => (item.id === row.id ? row : item))
@@ -338,15 +330,20 @@ export default function App() {
       } else {
         const inserted = await supabaseRequest("budget", {
           method: "POST",
-          body: JSON.stringify([{ ...payload, created_at: new Date().toISOString() }]),
+          body: JSON.stringify([
+            { ...payload, created_at: new Date().toISOString() },
+          ]),
         });
+
         const row = inserted?.[0] as BudgetItem;
         setBudgetItems((prev) => [row, ...prev]);
       }
 
       resetBudgetForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při ukládání rozpočtu");
+      setError(
+        err instanceof Error ? err.message : "Chyba při ukládání rozpočtu"
+      );
     } finally {
       setSaving(false);
     }
@@ -359,10 +356,13 @@ export default function App() {
         method: "DELETE",
         headers: { Prefer: "return=minimal" },
       });
+
       setBudgetItems((prev) => prev.filter((item) => item.id !== id));
       if (editingBudgetId === id) resetBudgetForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při mazání rozpočtu");
+      setError(
+        err instanceof Error ? err.message : "Chyba při mazání rozpočtu"
+      );
     }
   }
 
@@ -412,13 +412,17 @@ export default function App() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
+
         const row = updated?.[0] as Guest;
         setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
       } else {
         const inserted = await supabaseRequest("guests", {
           method: "POST",
-          body: JSON.stringify([{ ...payload, created_at: new Date().toISOString() }]),
+          body: JSON.stringify([
+            { ...payload, created_at: new Date().toISOString() },
+          ]),
         });
+
         const row = inserted?.[0] as Guest;
         setGuests((prev) => [row, ...prev]);
       }
@@ -435,6 +439,7 @@ export default function App() {
     try {
       setError("");
       const nextConfirmed = !guest.confirmed;
+
       const updated = await supabaseRequest(`guests?id=eq.${guest.id}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -443,6 +448,7 @@ export default function App() {
           updated_at: new Date().toISOString(),
         }),
       });
+
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
     } catch (err) {
@@ -457,6 +463,7 @@ export default function App() {
         method: "DELETE",
         headers: { Prefer: "return=minimal" },
       });
+
       setGuests((prev) => prev.filter((g) => g.id !== id));
       if (editingGuestId === id) resetGuestForm();
     } catch (err) {
@@ -479,24 +486,46 @@ export default function App() {
 
   const filteredTasks = useMemo(() => {
     let list = [...tasks];
-    if (taskOwnerFilter !== "Vše") list = list.filter((t) => t.owner === taskOwnerFilter);
-    if (taskStatusFilter !== "Vše") list = list.filter((t) => t.status === taskStatusFilter);
-    if (taskPriorityFilter !== "Vše") list = list.filter((t) => t.priority === taskPriorityFilter);
+    if (taskOwnerFilter !== "Vše") {
+      list = list.filter((t) => t.owner === taskOwnerFilter);
+    }
+    if (taskStatusFilter !== "Vše") {
+      list = list.filter((t) => t.status === taskStatusFilter);
+    }
+    if (taskPriorityFilter !== "Vše") {
+      list = list.filter((t) => t.priority === taskPriorityFilter);
+    }
     return sortTasks(list, taskSort);
   }, [tasks, taskOwnerFilter, taskStatusFilter, taskPriorityFilter, taskSort]);
 
   const filteredBudget = useMemo(() => {
     let list = [...budgetItems];
-    if (budgetCategoryFilter !== "Vše") list = list.filter((b) => b.category === budgetCategoryFilter);
-    if (budgetPaymentFilter !== "Vše") list = list.filter((b) => b.payment_status === budgetPaymentFilter);
-    if (budgetOwnerFilter !== "Vše") list = list.filter((b) => b.owner === budgetOwnerFilter);
+    if (budgetCategoryFilter !== "Vše") {
+      list = list.filter((b) => b.category === budgetCategoryFilter);
+    }
+    if (budgetPaymentFilter !== "Vše") {
+      list = list.filter((b) => b.payment_status === budgetPaymentFilter);
+    }
+    if (budgetOwnerFilter !== "Vše") {
+      list = list.filter((b) => b.owner === budgetOwnerFilter);
+    }
     return sortBudget(list, budgetSort);
-  }, [budgetItems, budgetCategoryFilter, budgetPaymentFilter, budgetOwnerFilter, budgetSort]);
+  }, [
+    budgetItems,
+    budgetCategoryFilter,
+    budgetPaymentFilter,
+    budgetOwnerFilter,
+    budgetSort,
+  ]);
 
   const filteredGuests = useMemo(() => {
     let list = [...guests];
-    if (guestSideFilter !== "Vše") list = list.filter((g) => g.side === guestSideFilter);
-    if (guestRsvpFilter !== "Vše") list = list.filter((g) => g.rsvp_status === guestRsvpFilter);
+    if (guestSideFilter !== "Vše") {
+      list = list.filter((g) => g.side === guestSideFilter);
+    }
+    if (guestRsvpFilter !== "Vše") {
+      list = list.filter((g) => g.rsvp_status === guestRsvpFilter);
+    }
     return list;
   }, [guests, guestSideFilter, guestRsvpFilter]);
 
@@ -512,14 +541,20 @@ export default function App() {
     };
   }, [tasks, budgetItems, guests]);
 
-  if (loading) return <div style={loadingStyle}>Načítám data ze Supabase…</div>;
+  if (loading) {
+    return <div style={loadingStyle}>Načítám data ze Supabase…</div>;
+  }
 
   return (
     <div style={containerStyle}>
       <h1 style={titleStyle}>💍 Svatba planner</h1>
 
       <div style={topBarStyle}>
-        <button onClick={loadAll} style={primaryButtonStyle} disabled={loading || saving}>
+        <button
+          onClick={loadAll}
+          style={primaryButtonStyle}
+          disabled={loading || saving}
+        >
           Obnovit data
         </button>
         <span style={statusStyle}>{saving ? "Ukládám…" : "Připraveno"}</span>
@@ -527,378 +562,138 @@ export default function App() {
 
       {error && <div style={errorStyle}>{error}</div>}
 
-      <section style={sectionStyle}>
-        <button onClick={() => toggleSection("dashboard")} style={sectionToggleStyle}>
-          Přehled pro vás dva {sectionsOpen.dashboard ? "▲" : "▼"}
-        </button>
-        {sectionsOpen.dashboard && (
-          <div style={cardListStyle}>
-            <div style={cardStyle}>
-              <div style={cardTitleStyle}>Co hoří</div>
-              <div style={metaGridStyle}>
-                <div>Vysoká priorita: <strong>{taskStats.high}</strong></div>
-                <div>Úkoly ve stavu Čeká: <strong>{taskStats.waiting}</strong></div>
-                <div>Po splatnosti: <strong>{budgetStats.overdue}</strong></div>
-                <div>Hosté bez odpovědi: <strong>{guestStats.pending}</strong></div>
-              </div>
-            </div>
+      <DashboardSection
+        isOpen={sectionsOpen.dashboard}
+        onToggle={() => toggleSection("dashboard")}
+        taskStats={taskStats}
+        budgetStats={budgetStats}
+        guestStats={guestStats}
+        recentItems={recentItems}
+      />
 
-            <div style={cardStyle}>
-              <div style={cardTitleStyle}>Kdo co řeší</div>
-              <div style={metaGridStyle}>
-                <div>Ondra má úkolů: <strong>{taskStats.byOwner.Ondra}</strong></div>
-                <div>Kája má úkolů: <strong>{taskStats.byOwner.Kája}</strong></div>
-                <div>Společných úkolů: <strong>{taskStats.byOwner.Oba}</strong></div>
-              </div>
-            </div>
+      <TasksSection
+        isOpen={sectionsOpen.tasks}
+        onToggle={() => toggleSection("tasks")}
+        people={people}
+        taskStatuses={taskStatuses}
+        taskPriorities={taskPriorities}
+        taskStats={taskStats}
+        taskInput={taskInput}
+        setTaskInput={setTaskInput}
+        taskOwner={taskOwner}
+        setTaskOwner={setTaskOwner}
+        taskStatus={taskStatus}
+        setTaskStatus={setTaskStatus}
+        taskPriority={taskPriority}
+        setTaskPriority={setTaskPriority}
+        taskUpdatedBy={taskUpdatedBy}
+        setTaskUpdatedBy={setTaskUpdatedBy}
+        taskDeadline={taskDeadline}
+        setTaskDeadline={setTaskDeadline}
+        taskNote={taskNote}
+        setTaskNote={setTaskNote}
+        editingTaskId={editingTaskId}
+        saveTask={saveTask}
+        resetTaskForm={resetTaskForm}
+        saving={saving}
+        taskOwnerFilter={taskOwnerFilter}
+        setTaskOwnerFilter={setTaskOwnerFilter}
+        taskStatusFilter={taskStatusFilter}
+        setTaskStatusFilter={setTaskStatusFilter}
+        taskPriorityFilter={taskPriorityFilter}
+        setTaskPriorityFilter={setTaskPriorityFilter}
+        taskSort={taskSort}
+        setTaskSort={setTaskSort}
+        filteredTasks={filteredTasks}
+        toggleTask={toggleTask}
+        startEditTask={startEditTask}
+        deleteTask={deleteTask}
+      />
 
-            <div style={cardStyle}>
-              <div style={cardTitleStyle}>Finance</div>
-              <div style={metaGridStyle}>
-                <div>Plán: <strong>{budgetStats.totalPlanned} Kč</strong></div>
-                <div>Skutečnost: <strong>{budgetStats.totalActual} Kč</strong></div>
-                <div>Už zaplaceno: <strong>{budgetStats.totalPaid} Kč</strong></div>
-                <div>Zbývá: <strong>{budgetStats.totalRemaining} Kč</strong></div>
-              </div>
-            </div>
+      <BudgetSection
+        isOpen={sectionsOpen.budget}
+        onToggle={() => toggleSection("budget")}
+        categories={categories}
+        paymentStatuses={paymentStatuses}
+        people={people}
+        budgetStats={budgetStats}
+        category={category}
+        setCategory={setCategory}
+        budgetName={budgetName}
+        setBudgetName={setBudgetName}
+        budgetOwner={budgetOwner}
+        setBudgetOwner={setBudgetOwner}
+        vendor={vendor}
+        setVendor={setVendor}
+        dueDate={dueDate}
+        setDueDate={setDueDate}
+        paymentStatus={paymentStatus}
+        setPaymentStatus={setPaymentStatus}
+        planned={planned}
+        setPlanned={setPlanned}
+        actual={actual}
+        setActual={setActual}
+        deposit={deposit}
+        setDeposit={setDeposit}
+        fullyPaid={fullyPaid}
+        setFullyPaid={setFullyPaid}
+        budgetUpdatedBy={budgetUpdatedBy}
+        setBudgetUpdatedBy={setBudgetUpdatedBy}
+        budgetNote={budgetNote}
+        setBudgetNote={setBudgetNote}
+        editingBudgetId={editingBudgetId}
+        saveBudgetItem={saveBudgetItem}
+        resetBudgetForm={resetBudgetForm}
+        saving={saving}
+        budgetCategoryFilter={budgetCategoryFilter}
+        setBudgetCategoryFilter={setBudgetCategoryFilter}
+        budgetPaymentFilter={budgetPaymentFilter}
+        setBudgetPaymentFilter={setBudgetPaymentFilter}
+        budgetOwnerFilter={budgetOwnerFilter}
+        setBudgetOwnerFilter={setBudgetOwnerFilter}
+        budgetSort={budgetSort}
+        setBudgetSort={setBudgetSort}
+        filteredBudget={filteredBudget}
+        startEditBudgetItem={startEditBudgetItem}
+        deleteBudgetItem={deleteBudgetItem}
+      />
 
-            <div style={cardStyle}>
-              <div style={cardTitleStyle}>Hosté</div>
-              <div style={metaGridStyle}>
-                <div>Lidí celkem: <strong>{guestStats.totalPeople}</strong></div>
-                <div>Potvrzeno: <strong>{guestStats.confirmed}</strong></div>
-                <div>Přespání: <strong>{guestStats.sleeping}</strong></div>
-                <div>Děti: <strong>{guestStats.children}</strong></div>
-              </div>
-            </div>
-
-            <div style={cardStyle}>
-              <div style={cardTitleStyle}>Poslední změny</div>
-              <div style={metaGridStyle}>
-                <div>Úkol: <strong>{recentItems.task}</strong></div>
-                <div>Rozpočet: <strong>{recentItems.budget}</strong></div>
-                <div>Host: <strong>{recentItems.guest}</strong></div>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section style={sectionStyle}>
-        <button onClick={() => toggleSection("tasks")} style={sectionToggleStyle}>
-          Checklist {sectionsOpen.tasks ? "▲" : "▼"}
-        </button>
-        {sectionsOpen.tasks && (
-          <>
-            <div style={statsWrapStyle}>
-              <div style={statBoxStyle}>Úkolů: {taskStats.total}</div>
-              <div style={statBoxStyle}>Hotovo: {taskStats.completed}</div>
-              <div style={statBoxStyle}>Zbývá: {taskStats.pending}</div>
-              <div style={statBoxStyle}>Čeká: {taskStats.waiting}</div>
-            </div>
-
-            <div style={formStackStyle}>
-              <input value={taskInput} onChange={(e) => setTaskInput(e.target.value)} placeholder="Např. zamluvit místo" style={inputStyle} />
-              <select value={taskOwner} onChange={(e) => setTaskOwner(e.target.value as Person)} style={inputStyle}>
-                {people.map((person) => <option key={person} value={person}>{person}</option>)}
-              </select>
-              <select value={taskStatus} onChange={(e) => setTaskStatus(e.target.value as TaskStatus)} style={inputStyle}>
-                {taskStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-              </select>
-              <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value as TaskPriority)} style={inputStyle}>
-                {taskPriorities.map((priority) => <option key={priority} value={priority}>Priorita: {priority}</option>)}
-              </select>
-              <select value={taskUpdatedBy} onChange={(e) => setTaskUpdatedBy(e.target.value as Person)} style={inputStyle}>
-                {people.map((person) => <option key={person} value={person}>Update dělal: {person}</option>)}
-              </select>
-              <input type="date" value={taskDeadline} onChange={(e) => setTaskDeadline(e.target.value)} style={inputStyle} />
-              <input value={taskNote} onChange={(e) => setTaskNote(e.target.value)} placeholder="Komentář / poznámka" style={inputStyle} />
-              <div style={buttonRowStyle}>
-                <button onClick={saveTask} style={primaryButtonStyle} disabled={saving}>
-                  {editingTaskId ? "Uložit" : "Přidat"}
-                </button>
-                {editingTaskId && <button onClick={resetTaskForm} style={secondaryButtonStyle}>Zrušit</button>}
-              </div>
-            </div>
-
-            <div style={filterCardStyle}>
-              <div style={filterTitleStyle}>Filtry a řazení</div>
-              <div style={chipsWrapStyle}>
-                <span style={filterLabelStyle}>Vlastník:</span>
-                <button style={chipStyle(taskOwnerFilter === "Vše")} onClick={() => setTaskOwnerFilter("Vše")}>Vše</button>
-                {people.map((person) => (
-                  <button key={person} style={chipStyle(taskOwnerFilter === person)} onClick={() => setTaskOwnerFilter(person)}>
-                    {person}
-                  </button>
-                ))}
-              </div>
-              <div style={chipsWrapStyle}>
-                <span style={filterLabelStyle}>Stav:</span>
-                <button style={chipStyle(taskStatusFilter === "Vše")} onClick={() => setTaskStatusFilter("Vše")}>Vše</button>
-                {taskStatuses.map((status) => (
-                  <button key={status} style={chipStyle(taskStatusFilter === status)} onClick={() => setTaskStatusFilter(status)}>
-                    {status}
-                  </button>
-                ))}
-              </div>
-              <div style={chipsWrapStyle}>
-                <span style={filterLabelStyle}>Priorita:</span>
-                <button style={chipStyle(taskPriorityFilter === "Vše")} onClick={() => setTaskPriorityFilter("Vše")}>Vše</button>
-                {taskPriorities.map((priority) => (
-                  <button key={priority} style={chipStyle(taskPriorityFilter === priority)} onClick={() => setTaskPriorityFilter(priority)}>
-                    {priority}
-                  </button>
-                ))}
-              </div>
-              <select value={taskSort} onChange={(e) => setTaskSort(e.target.value as typeof taskSort)} style={inputStyle}>
-                <option value="deadline">Řadit podle deadline</option>
-                <option value="owner">Řadit podle vlastníka</option>
-                <option value="priority">Řadit podle priority</option>
-              </select>
-            </div>
-
-            <div style={cardListStyle}>
-              {filteredTasks.length === 0 && <div style={emptyStyle}>Žádné úkoly pro aktuální filtr.</div>}
-              {filteredTasks.map((task) => (
-                <div key={task.id} style={cardStyle}>
-                  <div style={badgeRowStyle}>
-                    <span style={badgeStyle}>{task.owner}</span>
-                    <span style={badgeStyle}>{task.status}</span>
-                    <span style={badgeStyle}>{task.priority}</span>
-                  </div>
-                  <div style={cardTitleStyle}>{task.text}</div>
-                  <div style={metaGridStyle}>
-                    <div>Deadline: <strong>{formatDate(task.deadline)}</strong></div>
-                    <div>Komentář: <strong>{task.note || "-"}</strong></div>
-                    <div>Poslední update: <strong>{task.updated_by || "-"}</strong></div>
-                    <div>Upraveno: <strong>{formatDate(task.updated_at)}</strong></div>
-                  </div>
-                  <div style={buttonRowStyle}>
-                    <button onClick={() => toggleTask(task)} style={secondaryButtonStyle}>
-                      {task.done || task.status === "Hotovo" ? "Označit zpět" : "Označit hotovo"}
-                    </button>
-                    <button onClick={() => startEditTask(task)} style={secondaryButtonStyle}>Upravit</button>
-                    <button onClick={() => deleteTask(task.id)} style={dangerButtonStyle}>Smazat</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-
-      <section style={sectionStyle}>
-        <button onClick={() => toggleSection("budget")} style={sectionToggleStyle}>
-          Rozpočet {sectionsOpen.budget ? "▲" : "▼"}
-        </button>
-        {sectionsOpen.budget && (
-          <>
-            <div style={statsWrapStyle}>
-              <div style={statBoxStyle}>Plán: {budgetStats.totalPlanned} Kč</div>
-              <div style={statBoxStyle}>Skutečnost: {budgetStats.totalActual} Kč</div>
-              <div style={statBoxStyle}>Zaplaceno: {budgetStats.totalPaid} Kč</div>
-              <div style={statBoxStyle}>Zbývá: {budgetStats.totalRemaining} Kč</div>
-              <div style={statBoxStyle}>Po splatnosti: {budgetStats.overdue}</div>
-            </div>
-
-            <div style={formStackStyle}>
-              <select value={category} onChange={(e) => setCategory(e.target.value as BudgetCategory)} style={inputStyle}>
-                {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-              </select>
-              <input value={budgetName} onChange={(e) => setBudgetName(e.target.value)} placeholder="Položka" style={inputStyle} />
-              <select value={budgetOwner} onChange={(e) => setBudgetOwner(e.target.value as Person)} style={inputStyle}>
-                {people.map((person) => <option key={person} value={person}>Řeší: {person}</option>)}
-              </select>
-              <input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Dodavatel / kontakt" style={inputStyle} />
-              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
-              <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)} style={inputStyle}>
-                {paymentStatuses.map((status) => <option key={status} value={status}>Stav platby: {status}</option>)}
-              </select>
-              <input type="number" value={planned} onChange={(e) => setPlanned(e.target.value)} placeholder="Plánovaná cena" style={inputStyle} />
-              <input type="number" value={actual} onChange={(e) => setActual(e.target.value)} placeholder="Skutečná cena" style={inputStyle} />
-              <input type="number" value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="Záloha" style={inputStyle} />
-              <label style={checkboxLineStyle}>
-                <input type="checkbox" checked={fullyPaid} onChange={(e) => setFullyPaid(e.target.checked)} />
-                Zaplaceno celé
-              </label>
-              <select value={budgetUpdatedBy} onChange={(e) => setBudgetUpdatedBy(e.target.value as Person)} style={inputStyle}>
-                {people.map((person) => <option key={person} value={person}>Update dělal: {person}</option>)}
-              </select>
-              <input value={budgetNote} onChange={(e) => setBudgetNote(e.target.value)} placeholder="Komentář / poznámka" style={inputStyle} />
-              <div style={buttonRowStyle}>
-                <button onClick={saveBudgetItem} style={primaryButtonStyle} disabled={saving}>
-                  {editingBudgetId ? "Uložit" : "Přidat"}
-                </button>
-                {editingBudgetId && <button onClick={resetBudgetForm} style={secondaryButtonStyle}>Zrušit</button>}
-              </div>
-            </div>
-
-            <div style={filterCardStyle}>
-              <div style={filterTitleStyle}>Filtry a řazení</div>
-              <div style={chipsWrapStyle}>
-                <span style={filterLabelStyle}>Kategorie:</span>
-                <button style={chipStyle(budgetCategoryFilter === "Vše")} onClick={() => setBudgetCategoryFilter("Vše")}>Vše</button>
-                {categories.map((cat) => (
-                  <button key={cat} style={chipStyle(budgetCategoryFilter === cat)} onClick={() => setBudgetCategoryFilter(cat)}>
-                    {cat}
-                  </button>
-                ))}
-              </div>
-              <div style={chipsWrapStyle}>
-                <span style={filterLabelStyle}>Platba:</span>
-                <button style={chipStyle(budgetPaymentFilter === "Vše")} onClick={() => setBudgetPaymentFilter("Vše")}>Vše</button>
-                {paymentStatuses.map((status) => (
-                  <button key={status} style={chipStyle(budgetPaymentFilter === status)} onClick={() => setBudgetPaymentFilter(status)}>
-                    {status}
-                  </button>
-                ))}
-              </div>
-              <div style={chipsWrapStyle}>
-                <span style={filterLabelStyle}>Řeší:</span>
-                <button style={chipStyle(budgetOwnerFilter === "Vše")} onClick={() => setBudgetOwnerFilter("Vše")}>Vše</button>
-                {people.map((person) => (
-                  <button key={person} style={chipStyle(budgetOwnerFilter === person)} onClick={() => setBudgetOwnerFilter(person)}>
-                    {person}
-                  </button>
-                ))}
-              </div>
-              <select value={budgetSort} onChange={(e) => setBudgetSort(e.target.value as typeof budgetSort)} style={inputStyle}>
-                <option value="due_date">Řadit podle splatnosti</option>
-                <option value="category">Řadit podle kategorie</option>
-                <option value="remaining">Řadit podle zbývá doplatit</option>
-              </select>
-            </div>
-
-            <div style={cardListStyle}>
-              {filteredBudget.length === 0 && <div style={emptyStyle}>Žádné položky rozpočtu pro aktuální filtr.</div>}
-              {filteredBudget.map((item) => (
-                <div key={item.id} style={cardStyle}>
-                  <div style={badgeRowStyle}>
-                    <span style={badgeStyle}>{item.category}</span>
-                    <span style={badgeStyle}>{item.owner || "Oba"}</span>
-                    <span style={badgeStyle}>{item.payment_status || "Nezaplaceno"}</span>
-                  </div>
-                  <div style={cardTitleStyle}>{item.name}</div>
-                  <div style={metaGridStyle}>
-                    <div>Dodavatel: <strong>{item.vendor || "-"}</strong></div>
-                    <div>Splatnost: <strong>{formatDate(item.due_date)}</strong></div>
-                    <div>Plán: <strong>{item.planned} Kč</strong></div>
-                    <div>Skutečnost: <strong>{item.actual} Kč</strong></div>
-                    <div>Záloha: <strong>{item.deposit} Kč</strong></div>
-                    <div>Zbývá: <strong>{getRemaining(item)} Kč</strong></div>
-                    <div>Komentář: <strong>{item.note || "-"}</strong></div>
-                    <div>Poslední update: <strong>{item.updated_by || "-"}</strong></div>
-                    <div>Upraveno: <strong>{formatDate(item.updated_at)}</strong></div>
-                  </div>
-                  <div style={buttonRowStyle}>
-                    <button onClick={() => startEditBudgetItem(item)} style={secondaryButtonStyle}>Upravit</button>
-                    <button onClick={() => deleteBudgetItem(item.id)} style={dangerButtonStyle}>Smazat</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-
-      <section style={sectionStyle}>
-        <button onClick={() => toggleSection("guests")} style={sectionToggleStyle}>
-          Hosté {sectionsOpen.guests ? "▲" : "▼"}
-        </button>
-        {sectionsOpen.guests && (
-          <>
-            <div style={statsWrapStyle}>
-              <div style={statBoxStyle}>Hostů: {guestStats.total}</div>
-              <div style={statBoxStyle}>Potvrzeno: {guestStats.confirmed}</div>
-              <div style={statBoxStyle}>Bez odpovědi: {guestStats.pending}</div>
-              <div style={statBoxStyle}>Odmítlo: {guestStats.declined}</div>
-              <div style={statBoxStyle}>Lidí celkem: {guestStats.totalPeople}</div>
-              <div style={statBoxStyle}>Přespání: {guestStats.sleeping}</div>
-              <div style={statBoxStyle}>Děti: {guestStats.children}</div>
-            </div>
-
-            <div style={formStackStyle}>
-              <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Jméno hosta" style={inputStyle} />
-              <select value={guestSide} onChange={(e) => setGuestSide(e.target.value as GuestSide)} style={inputStyle}>
-                {guestSides.map((side) => <option key={side} value={side}>Strana: {side}</option>)}
-              </select>
-              <select value={guestRsvp} onChange={(e) => setGuestRsvp(e.target.value as RsvpStatus)} style={inputStyle}>
-                {rsvpStatuses.map((status) => <option key={status} value={status}>RSVP: {status}</option>)}
-              </select>
-              <input type="number" min="1" value={guestCount} onChange={(e) => setGuestCount(e.target.value)} placeholder="Počet osob" style={inputStyle} />
-              <label style={checkboxLineStyle}>
-                <input type="checkbox" checked={guestAccommodation} onChange={(e) => setGuestAccommodation(e.target.checked)} />
-                Bude přespávat
-              </label>
-              <label style={checkboxLineStyle}>
-                <input type="checkbox" checked={guestChild} onChange={(e) => setGuestChild(e.target.checked)} />
-                Je to dítě
-              </label>
-              <select value={guestUpdatedBy} onChange={(e) => setGuestUpdatedBy(e.target.value as Person)} style={inputStyle}>
-                {people.map((person) => <option key={person} value={person}>Update dělal: {person}</option>)}
-              </select>
-              <input value={guestNote} onChange={(e) => setGuestNote(e.target.value)} placeholder="Komentář / poznámka" style={inputStyle} />
-              <div style={buttonRowStyle}>
-                <button onClick={saveGuest} style={primaryButtonStyle} disabled={saving}>
-                  {editingGuestId ? "Uložit" : "Přidat"}
-                </button>
-                {editingGuestId && <button onClick={resetGuestForm} style={secondaryButtonStyle}>Zrušit</button>}
-              </div>
-            </div>
-
-            <div style={filterCardStyle}>
-              <div style={filterTitleStyle}>Filtry</div>
-              <div style={chipsWrapStyle}>
-                <span style={filterLabelStyle}>Strana:</span>
-                <button style={chipStyle(guestSideFilter === "Vše")} onClick={() => setGuestSideFilter("Vše")}>Vše</button>
-                {guestSides.map((side) => (
-                  <button key={side} style={chipStyle(guestSideFilter === side)} onClick={() => setGuestSideFilter(side)}>
-                    {side}
-                  </button>
-                ))}
-              </div>
-              <div style={chipsWrapStyle}>
-                <span style={filterLabelStyle}>RSVP:</span>
-                <button style={chipStyle(guestRsvpFilter === "Vše")} onClick={() => setGuestRsvpFilter("Vše")}>Vše</button>
-                {rsvpStatuses.map((status) => (
-                  <button key={status} style={chipStyle(guestRsvpFilter === status)} onClick={() => setGuestRsvpFilter(status)}>
-                    {status}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={cardListStyle}>
-              {filteredGuests.length === 0 && <div style={emptyStyle}>Žádní hosté pro aktuální filtr.</div>}
-              {filteredGuests.map((guest) => (
-                <div key={guest.id} style={cardStyle}>
-                  <div style={badgeRowStyle}>
-                    <span style={badgeStyle}>Rodina</span>
-                    <span style={badgeStyle}>{guest.side || "Společní"}</span>
-                    <span style={badgeStyle}>{guest.rsvp_status || "Bez odpovědi"}</span>
-                  </div>
-                  <div style={cardTitleStyle}>{guest.name}</div>
-                  <div style={metaGridStyle}>
-                    <div>Počet osob: <strong>{guest.guest_count || 1}</strong></div>
-                    <div>Přespání: <strong>{guest.accommodation ? "Ano" : "Ne"}</strong></div>
-                    <div>Dítě: <strong>{guest.child ? "Ano" : "Ne"}</strong></div>
-                    <div>Komentář: <strong>{guest.note || "-"}</strong></div>
-                    <div>Poslední update: <strong>{guest.updated_by || "-"}</strong></div>
-                    <div>Upraveno: <strong>{formatDate(guest.updated_at)}</strong></div>
-                  </div>
-                  <div style={buttonRowStyle}>
-                    <button onClick={() => toggleGuest(guest)} style={secondaryButtonStyle}>
-                      {guest.confirmed ? "Zrušit potvrzení" : "Potvrdit"}
-                    </button>
-                    <button onClick={() => startEditGuest(guest)} style={secondaryButtonStyle}>Upravit</button>
-                    <button onClick={() => deleteGuest(guest.id)} style={dangerButtonStyle}>Smazat</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
+      <GuestsSection
+        isOpen={sectionsOpen.guests}
+        onToggle={() => toggleSection("guests")}
+        guestSides={guestSides}
+        rsvpStatuses={rsvpStatuses}
+        people={people}
+        guestStats={guestStats}
+        guestName={guestName}
+        setGuestName={setGuestName}
+        guestSide={guestSide}
+        setGuestSide={setGuestSide}
+        guestRsvp={guestRsvp}
+        setGuestRsvp={setGuestRsvp}
+        guestCount={guestCount}
+        setGuestCount={setGuestCount}
+        guestAccommodation={guestAccommodation}
+        setGuestAccommodation={setGuestAccommodation}
+        guestChild={guestChild}
+        setGuestChild={setGuestChild}
+        guestUpdatedBy={guestUpdatedBy}
+        setGuestUpdatedBy={setGuestUpdatedBy}
+        guestNote={guestNote}
+        setGuestNote={setGuestNote}
+        editingGuestId={editingGuestId}
+        saveGuest={saveGuest}
+        resetGuestForm={resetGuestForm}
+        saving={saving}
+        guestSideFilter={guestSideFilter}
+        setGuestSideFilter={setGuestSideFilter}
+        guestRsvpFilter={guestRsvpFilter}
+        setGuestRsvpFilter={setGuestRsvpFilter}
+        filteredGuests={filteredGuests}
+        toggleGuest={toggleGuest}
+        startEditGuest={startEditGuest}
+        deleteGuest={deleteGuest}
+      />
     </div>
   );
 }
