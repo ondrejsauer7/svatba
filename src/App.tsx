@@ -502,26 +502,30 @@ export default function App() {
           <tbody>
             {tasks.map((task) => (
               <tr key={task.id}>
-                <td style={tdStyle}>
-                  <input
-                    type="checkbox"
-                    checked={task.done}
-                    onChange={() => toggleTask(task)}
-                  />
-                </td>
-                <td style={tdStyle}>{task.text}</td>
-                <td style={tdStyle}>{task.deadline || "-"}</td>
-                <td style={tdStyle}>
-                  <div style={actionRow}>
-                    <button onClick={() => startEditTask(task)}>Upravit</button>
-                    <button onClick={() => deleteTask(task.id)}>Smazat</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+                <tr key={task.id}>
+  <td style={tdStyle}>
+    <input
+      type="checkbox"
+      checked={task.done}
+      onChange={() => toggleTask(task)}
+    />
+  </td>
+
+  <td style={tdStyle}>{task.text}</td>
+
+  <td style={tdStyle}>
+    {task.deadline
+      ? new Date(task.deadline).toLocaleDateString("cs-CZ")
+      : "-"}
+  </td>
+
+  <td style={tdStyle}>
+    <div style={actionRow}>
+      <button onClick={() => startEditTask(task)}>Upravit</button>
+      <button onClick={() => deleteTask(task.id)}>Smazat</button>
+    </div>
+  </td>
+</tr>
 
       <section style={{ marginBottom: 40 }}>
         <h2>Rozpočet</h2>
