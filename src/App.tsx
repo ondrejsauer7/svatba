@@ -191,7 +191,7 @@ export default function App() {
         });
 
         const row = inserted?.[0] as Task;
-        setTasks((prev) => [...prev, row]);
+        setTasks((prev) => [row, ...prev]);
       }
 
       resetTaskForm();
@@ -271,7 +271,7 @@ export default function App() {
         });
 
         const row = inserted?.[0] as BudgetItem;
-        setBudgetItems((prev) => [...prev, row]);
+        setBudgetItems((prev) => [row, ...prev]);
       }
 
       resetBudgetForm();
@@ -309,6 +309,7 @@ export default function App() {
     setDeposit(String(item.deposit));
     setFullyPaid(item.fully_paid);
     setEditingBudgetId(item.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function saveGuest() {
@@ -344,7 +345,7 @@ export default function App() {
         });
 
         const row = inserted?.[0] as Guest;
-        setGuests((prev) => [...prev, row]);
+        setGuests((prev) => [row, ...prev]);
       }
 
       resetGuestForm();
@@ -390,6 +391,14 @@ export default function App() {
     setGuestGroup(guest.group);
     setGuestNote(guest.note || "");
     setEditingGuestId(guest.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function startEditTask(task: Task) {
+    setTaskInput(task.text);
+    setTaskDeadline(task.deadline || "");
+    setEditingTaskId(task.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function remaining(item: BudgetItem) {
@@ -425,30 +434,30 @@ export default function App() {
   }, [guests]);
 
   if (loading) {
-    return <div style={{ padding: 24 }}>Načítám data ze Supabase…</div>;
+    return <div style={loadingStyle}>Načítám data ze Supabase…</div>;
   }
 
   return (
     <div style={containerStyle}>
-      <h1>💍 Svatba planner</h1>
+      <h1 style={titleStyle}>💍 Svatba planner</h1>
 
       <div style={topBarStyle}>
-        <button onClick={loadAll}>Obnovit data</button>
-        <span>{saving ? "Ukládám…" : "Připraveno"}</span>
+        <button onClick={loadAll} style={primaryButtonStyle}>Obnovit data</button>
+        <span style={statusStyle}>{saving ? "Ukládám…" : "Připraveno"}</span>
       </div>
 
       {error && <div style={errorStyle}>{error}</div>}
 
       <section style={sectionStyle}>
-        <h2>Checklist</h2>
+        <h2 style={sectionTitleStyle}>Checklist</h2>
 
-        <div style={statsRow}>
-          <div>Úkolů celkem: {taskStats.total}</div>
-          <div>Hotovo: {taskStats.completed}</div>
-          <div>Zbývá: {taskStats.pending}</div>
+        <div style={statsWrapStyle}>
+          <div style={statBoxStyle}>Úkolů celkem: {taskStats.total}</div>
+          <div style={statBoxStyle}>Hotovo: {taskStats.completed}</div>
+          <div style={statBoxStyle}>Zbývá: {taskStats.pending}</div>
         </div>
 
-        <div style={taskFormGrid}>
+        <div style={formStackStyle}>
           <input
             value={taskInput}
             onChange={(e) => setTaskInput(e.target.value)}
@@ -461,65 +470,81 @@ export default function App() {
             onChange={(e) => setTaskDeadline(e.target.value)}
             style={inputStyle}
           />
-          <button onClick={saveTask}>
-            {editingTaskId ? "Uložit" : "Přidat"}
-          </button>
-          {editingTaskId && <button onClick={resetTaskForm}>Zrušit</button>}
+          <div style={buttonRowStyle}>
+            <button onClick={saveTask} style={primaryButtonStyle}>
+              {editingTaskId ? "Uložit" : "Přidat"}
+            </button>
+            {editingTaskId && (
+              <button onClick={resetTaskForm} style={secondaryButtonStyle}>
+                Zrušit
+              </button>
+            )}
+          </div>
         </div>
 
-        <div style={tableWrapperStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Hotovo</th>
-                <th style={thStyle}>Úkol</th>
-                <th style={thStyle}>Deadline</th>
-                <th style={thStyle}>Akce</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((task) => (
-                <tr key={task.id}>
-                  <td style={tdStyle}>
-                    <input
-                      type="checkbox"
-                      checked={task.done}
-                      onChange={() => toggleTask(task)}
-                    />
-                  </td>
+        <div style={cardListStyle}>
+          {tasks.length === 0 && <div style={emptyStyle}>Zatím žádné úkoly.</div>}
 
-                  <td style={tdStyle}>{task.text}</td>
+          {tasks.map((task) => (
+            <div key={task.id} style={cardStyle}>
+              <div style={cardTopRowStyle}>
+                <label style={checkboxRowStyle}>
+                  <input
+                    type="checkbox"
+                    checked={task.done}
+                    onChange={() => toggleTask(task)}
+                  />
+                  <span
+                    style={{
+                      ...cardTitleStyle,
+                      textDecoration: task.done ? "line-through" : "none",
+                      opacity: task.done ? 0.7 : 1,
+                    }}
+                  >
+                    {task.text}
+                  </span>
+                </label>
+              </div>
 
-                  <td style={tdStyle}>
-                    {task.deadline
-                      ? new Date(task.deadline).toLocaleDateString("cs-CZ")
-                      : "-"}
-                  </td>
+              <div style={metaStyle}>
+                Deadline:{" "}
+                <strong>
+                  {task.deadline
+                    ? new Date(task.deadline).toLocaleDateString("cs-CZ")
+                    : "-"}
+                </strong>
+              </div>
 
-                  <td style={tdStyle}>
-                    <div style={actionRow}>
-                      <button onClick={() => startEditTask(task)}>Upravit</button>
-                      <button onClick={() => deleteTask(task.id)}>Smazat</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              <div style={buttonRowStyle}>
+                <button
+                  onClick={() => startEditTask(task)}
+                  style={secondaryButtonStyle}
+                >
+                  Upravit
+                </button>
+                <button
+                  onClick={() => deleteTask(task.id)}
+                  style={dangerButtonStyle}
+                >
+                  Smazat
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
       <section style={sectionStyle}>
-        <h2>Rozpočet</h2>
+        <h2 style={sectionTitleStyle}>Rozpočet</h2>
 
-        <div style={statsColumnMobile}>
-          <div>Plán celkem: {budgetStats.totalPlanned} Kč</div>
-          <div>Skutečnost celkem: {budgetStats.totalActual} Kč</div>
-          <div>Zálohy celkem: {budgetStats.totalDeposit} Kč</div>
-          <div>Zbývá doplatit: {budgetStats.totalRemaining} Kč</div>
+        <div style={statsWrapStyle}>
+          <div style={statBoxStyle}>Plán: {budgetStats.totalPlanned} Kč</div>
+          <div style={statBoxStyle}>Skutečnost: {budgetStats.totalActual} Kč</div>
+          <div style={statBoxStyle}>Zálohy: {budgetStats.totalDeposit} Kč</div>
+          <div style={statBoxStyle}>Zbývá: {budgetStats.totalRemaining} Kč</div>
         </div>
 
-        <div style={budgetFormGrid}>
+        <div style={formStackStyle}>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value as BudgetCategory)}
@@ -543,7 +568,7 @@ export default function App() {
             type="number"
             value={planned}
             onChange={(e) => setPlanned(e.target.value)}
-            placeholder="Plán"
+            placeholder="Plánovaná cena"
             style={inputStyle}
           />
 
@@ -551,7 +576,7 @@ export default function App() {
             type="number"
             value={actual}
             onChange={(e) => setActual(e.target.value)}
-            placeholder="Skutečnost"
+            placeholder="Skutečná cena"
             style={inputStyle}
           />
 
@@ -563,7 +588,7 @@ export default function App() {
             style={inputStyle}
           />
 
-          <label style={checkboxLabel}>
+          <label style={checkboxLineStyle}>
             <input
               type="checkbox"
               checked={fullyPaid}
@@ -572,63 +597,68 @@ export default function App() {
             Zaplaceno celé
           </label>
 
-          <button onClick={saveBudgetItem}>
-            {editingBudgetId ? "Uložit" : "Přidat"}
-          </button>
-          {editingBudgetId && <button onClick={resetBudgetForm}>Zrušit</button>}
+          <div style={buttonRowStyle}>
+            <button onClick={saveBudgetItem} style={primaryButtonStyle}>
+              {editingBudgetId ? "Uložit" : "Přidat"}
+            </button>
+            {editingBudgetId && (
+              <button onClick={resetBudgetForm} style={secondaryButtonStyle}>
+                Zrušit
+              </button>
+            )}
+          </div>
         </div>
 
-        <div style={tableWrapperStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Kategorie</th>
-                <th style={thStyle}>Položka</th>
-                <th style={thStyle}>Plán</th>
-                <th style={thStyle}>Skutečnost</th>
-                <th style={thStyle}>Záloha</th>
-                <th style={thStyle}>Zaplaceno celé</th>
-                <th style={thStyle}>Zbývá</th>
-                <th style={thStyle}>Akce</th>
-              </tr>
-            </thead>
-            <tbody>
-              {budgetItems.map((item) => (
-                <tr key={item.id}>
-                  <td style={tdStyle}>{item.category}</td>
-                  <td style={tdStyle}>{item.name}</td>
-                  <td style={tdStyle}>{item.planned} Kč</td>
-                  <td style={tdStyle}>{item.actual} Kč</td>
-                  <td style={tdStyle}>{item.deposit} Kč</td>
-                  <td style={tdStyle}>{item.fully_paid ? "Ano" : "Ne"}</td>
-                  <td style={tdStyle}>{remaining(item)} Kč</td>
-                  <td style={tdStyle}>
-                    <div style={actionRow}>
-                      <button onClick={() => startEditBudgetItem(item)}>
-                        Upravit
-                      </button>
-                      <button onClick={() => deleteBudgetItem(item.id)}>
-                        Smazat
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={cardListStyle}>
+          {budgetItems.length === 0 && (
+            <div style={emptyStyle}>Zatím žádné položky rozpočtu.</div>
+          )}
+
+          {budgetItems.map((item) => (
+            <div key={item.id} style={cardStyle}>
+              <div style={badgeStyle}>{item.category}</div>
+
+              <div style={cardTitleStyle}>{item.name}</div>
+
+              <div style={metaGridStyle}>
+                <div>Plán: <strong>{item.planned} Kč</strong></div>
+                <div>Skutečnost: <strong>{item.actual} Kč</strong></div>
+                <div>Záloha: <strong>{item.deposit} Kč</strong></div>
+                <div>Zbývá: <strong>{remaining(item)} Kč</strong></div>
+                <div>
+                  Stav: <strong>{item.fully_paid ? "Zaplaceno" : "Nezaplaceno"}</strong>
+                </div>
+              </div>
+
+              <div style={buttonRowStyle}>
+                <button
+                  onClick={() => startEditBudgetItem(item)}
+                  style={secondaryButtonStyle}
+                >
+                  Upravit
+                </button>
+                <button
+                  onClick={() => deleteBudgetItem(item.id)}
+                  style={dangerButtonStyle}
+                >
+                  Smazat
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
       <section style={sectionStyle}>
-        <h2>Hosté</h2>
+        <h2 style={sectionTitleStyle}>Hosté</h2>
 
-        <div style={statsRow}>
-          <div>Hostů celkem: {guestStats.total}</div>
-          <div>Potvrzeno: {guestStats.confirmed}</div>
-          <div>Čeká: {guestStats.pending}</div>
+        <div style={statsWrapStyle}>
+          <div style={statBoxStyle}>Hostů celkem: {guestStats.total}</div>
+          <div style={statBoxStyle}>Potvrzeno: {guestStats.confirmed}</div>
+          <div style={statBoxStyle}>Čeká: {guestStats.pending}</div>
         </div>
 
-        <div style={guestFormGrid}>
+        <div style={formStackStyle}>
           <input
             value={guestName}
             onChange={(e) => setGuestName(e.target.value)}
@@ -655,46 +685,56 @@ export default function App() {
             style={inputStyle}
           />
 
-          <button onClick={saveGuest}>
-            {editingGuestId ? "Uložit" : "Přidat"}
-          </button>
-          {editingGuestId && <button onClick={resetGuestForm}>Zrušit</button>}
+          <div style={buttonRowStyle}>
+            <button onClick={saveGuest} style={primaryButtonStyle}>
+              {editingGuestId ? "Uložit" : "Přidat"}
+            </button>
+            {editingGuestId && (
+              <button onClick={resetGuestForm} style={secondaryButtonStyle}>
+                Zrušit
+              </button>
+            )}
+          </div>
         </div>
 
-        <div style={tableWrapperStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Potvrzeno</th>
-                <th style={thStyle}>Jméno</th>
-                <th style={thStyle}>Skupina</th>
-                <th style={thStyle}>Poznámka</th>
-                <th style={thStyle}>Akce</th>
-              </tr>
-            </thead>
-            <tbody>
-              {guests.map((guest) => (
-                <tr key={guest.id}>
-                  <td style={tdStyle}>
-                    <input
-                      type="checkbox"
-                      checked={guest.confirmed}
-                      onChange={() => toggleGuest(guest)}
-                    />
-                  </td>
-                  <td style={tdStyle}>{guest.name}</td>
-                  <td style={tdStyle}>{guest.group}</td>
-                  <td style={tdStyle}>{guest.note || "-"}</td>
-                  <td style={tdStyle}>
-                    <div style={actionRow}>
-                      <button onClick={() => startEditGuest(guest)}>Upravit</button>
-                      <button onClick={() => deleteGuest(guest.id)}>Smazat</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={cardListStyle}>
+          {guests.length === 0 && <div style={emptyStyle}>Zatím žádní hosté.</div>}
+
+          {guests.map((guest) => (
+            <div key={guest.id} style={cardStyle}>
+              <div style={cardTopRowStyle}>
+                <label style={checkboxRowStyle}>
+                  <input
+                    type="checkbox"
+                    checked={guest.confirmed}
+                    onChange={() => toggleGuest(guest)}
+                  />
+                  <span style={cardTitleStyle}>{guest.name}</span>
+                </label>
+              </div>
+
+              <div style={metaGridStyle}>
+                <div>Skupina: <strong>{guest.group}</strong></div>
+                <div>Stav: <strong>{guest.confirmed ? "Potvrzeno" : "Čeká"}</strong></div>
+                <div>Poznámka: <strong>{guest.note || "-"}</strong></div>
+              </div>
+
+              <div style={buttonRowStyle}>
+                <button
+                  onClick={() => startEditGuest(guest)}
+                  style={secondaryButtonStyle}
+                >
+                  Upravit
+                </button>
+                <button
+                  onClick={() => deleteGuest(guest.id)}
+                  style={dangerButtonStyle}
+                >
+                  Smazat
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
     </div>
@@ -702,22 +742,41 @@ export default function App() {
 }
 
 const containerStyle: React.CSSProperties = {
-  padding: 20,
+  padding: 16,
   fontFamily: "Arial, sans-serif",
-  maxWidth: 1200,
+  maxWidth: 760,
   margin: "0 auto",
 };
 
+const titleStyle: React.CSSProperties = {
+  fontSize: 28,
+  marginBottom: 12,
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 24,
+  marginBottom: 12,
+};
+
 const sectionStyle: React.CSSProperties = {
-  marginBottom: 40,
+  marginBottom: 36,
 };
 
 const topBarStyle: React.CSSProperties = {
   marginBottom: 16,
   display: "flex",
-  gap: 8,
+  gap: 10,
   flexWrap: "wrap",
   alignItems: "center",
+};
+
+const statusStyle: React.CSSProperties = {
+  fontWeight: 600,
+};
+
+const loadingStyle: React.CSSProperties = {
+  padding: 24,
+  fontFamily: "Arial, sans-serif",
 };
 
 const errorStyle: React.CSSProperties = {
@@ -726,84 +785,134 @@ const errorStyle: React.CSSProperties = {
   padding: 12,
   marginBottom: 16,
   border: "1px solid #f0b3b3",
+  borderRadius: 10,
 };
 
-const tableWrapperStyle: React.CSSProperties = {
-  overflowX: "auto",
-  WebkitOverflowScrolling: "touch",
-  marginTop: 16,
+const statsWrapStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+  marginBottom: 14,
 };
 
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  minWidth: 700,
-  borderCollapse: "collapse",
+const statBoxStyle: React.CSSProperties = {
+  background: "#f3f3f3",
+  padding: "8px 12px",
+  borderRadius: 999,
+  fontWeight: 700,
+  fontSize: 14,
 };
 
-const thStyle: React.CSSProperties = {
-  border: "1px solid #ccc",
-  padding: 8,
-  textAlign: "left",
-  background: "#f4f4f4",
-};
-
-const tdStyle: React.CSSProperties = {
-  border: "1px solid #ccc",
-  padding: 8,
-  verticalAlign: "top",
+const formStackStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  marginBottom: 16,
 };
 
 const inputStyle: React.CSSProperties = {
-  padding: 8,
+  padding: 12,
   width: "100%",
   boxSizing: "border-box",
+  borderRadius: 10,
+  border: "1px solid #ccc",
+  fontSize: 16,
 };
 
-const statsRow: React.CSSProperties = {
+const checkboxLineStyle: React.CSSProperties = {
   display: "flex",
-  gap: 16,
+  alignItems: "center",
+  gap: 10,
+  fontWeight: 600,
+};
+
+const buttonRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
   flexWrap: "wrap",
-  fontWeight: "bold",
 };
 
-const statsColumnMobile: React.CSSProperties = {
-  display: "flex",
+const primaryButtonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "1px solid #333",
+  background: "#111",
+  color: "#fff",
+  fontWeight: 700,
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "1px solid #bbb",
+  background: "#f6f6f6",
+  fontWeight: 700,
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "1px solid #d99",
+  background: "#fff5f5",
+  color: "#900",
+  fontWeight: 700,
+};
+
+const cardListStyle: React.CSSProperties = {
+  display: "grid",
   gap: 12,
-  flexWrap: "wrap",
-  fontWeight: "bold",
 };
 
-const actionRow: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
+const cardStyle: React.CSSProperties = {
+  border: "1px solid #ddd",
+  borderRadius: 14,
+  padding: 14,
+  background: "#fff",
+  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
 };
 
-const checkboxLabel: React.CSSProperties = {
+const cardTopRowStyle: React.CSSProperties = {
   display: "flex",
+  justifyContent: "space-between",
   alignItems: "center",
-  gap: 8,
-  minWidth: 140,
+  gap: 10,
+  marginBottom: 10,
 };
 
-const taskFormGrid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "2fr 1fr auto auto",
-  gap: 8,
-  marginTop: 16,
+const cardTitleStyle: React.CSSProperties = {
+  fontSize: 18,
+  fontWeight: 700,
 };
 
-const budgetFormGrid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1.5fr 1fr 1fr 1fr 1fr auto auto",
-  gap: 8,
-  marginTop: 16,
+const checkboxRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
   alignItems: "center",
 };
 
-const guestFormGrid: React.CSSProperties = {
+const metaStyle: React.CSSProperties = {
+  marginBottom: 12,
+  color: "#444",
+};
+
+const metaGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1.5fr 1fr 1.5fr auto auto",
   gap: 8,
-  marginTop: 16,
+  marginBottom: 12,
+  color: "#333",
+};
+
+const badgeStyle: React.CSSProperties = {
+  display: "inline-block",
+  background: "#eef2ff",
+  color: "#334",
+  padding: "6px 10px",
+  borderRadius: 999,
+  fontWeight: 700,
+  fontSize: 13,
+  marginBottom: 10,
+};
+
+const emptyStyle: React.CSSProperties = {
+  color: "#666",
+  padding: 8,
 };
