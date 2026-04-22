@@ -1,10 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+type Person = "Ondra" | "Kája" | "Oba";
+
+type TaskStatus = "To do" | "Rozdělané" | "Čeká" | "Hotovo";
+
 type Task = {
   id: string;
   text: string;
   deadline: string | null;
   done: boolean;
+  owner: Person;
+  status: TaskStatus;
+  note: string | null;
 };
 
 type BudgetCategory =
@@ -19,6 +26,8 @@ type BudgetCategory =
   | "Doprava"
   | "Ostatní";
 
+type PaymentStatus = "Nezaplaceno" | "Záloha" | "Zaplaceno";
+
 type BudgetItem = {
   id: string;
   category: BudgetCategory;
@@ -27,9 +36,16 @@ type BudgetItem = {
   actual: number;
   deposit: number;
   fully_paid: boolean;
+  owner: Person;
+  vendor: string | null;
+  due_date: string | null;
+  payment_status: PaymentStatus;
+  note: string | null;
 };
 
 type GuestGroup = "Rodina" | "Kamarádi" | "Práce" | "Ostatní";
+type GuestSide = "Ondra" | "Kája" | "Společní";
+type RsvpStatus = "Bez odpovědi" | "Potvrzeno" | "Odmítl";
 
 type Guest = {
   id: string;
@@ -37,11 +53,18 @@ type Guest = {
   group: GuestGroup;
   confirmed: boolean;
   note: string | null;
+  side: GuestSide;
+  rsvp_status: RsvpStatus;
+  guest_count: number;
+  accommodation: boolean;
+  transport: boolean;
 };
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 
+const people: Person[] = ["Ondra", "Kája", "Oba"];
+const taskStatuses: TaskStatus[] = ["To do", "Rozdělané", "Čeká", "Hotovo"];
 const categories: BudgetCategory[] = [
   "Místo",
   "Fotograf",
@@ -54,18 +77,12 @@ const categories: BudgetCategory[] = [
   "Doprava",
   "Ostatní",
 ];
+const paymentStatuses: PaymentStatus[] = ["Nezaplaceno", "Záloha", "Zaplaceno"];
+const guestGroups: GuestGroup[] = ["Rodina", "Kamarádi", "Práce", "Ostatní"];
+const guestSides: GuestSide[] = ["Ondra", "Kája", "Společní"];
+const rsvpStatuses: RsvpStatus[] = ["Bez odpovědi", "Potvrzeno", "Odmítl"];
 
-const guestGroups: GuestGroup[] = [
-  "Rodina",
-  "Kamarádi",
-  "Práce",
-  "Ostatní",
-];
-
-async function supabaseRequest(
-  path: string,
-  options: RequestInit = {}
-) {
+async function supabaseRequest(path: string, options: RequestInit = {}) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
@@ -86,6 +103,11 @@ async function supabaseRequest(
   return response.json();
 }
 
+function formatDate(date: string | null | undefined) {
+  if (!date) return "-";
+  return new Date(date).toLocaleDateString("cs-CZ");
+}
+
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -97,6 +119,9 @@ export default function App() {
 
   const [taskInput, setTaskInput] = useState("");
   const [taskDeadline, setTaskDeadline] = useState("");
+  const [taskOwner, setTaskOwner] = useState<Person>("Oba");
+  const [taskStatus, setTaskStatus] = useState<TaskStatus>("To do");
+  const [taskNote, setTaskNote] = useState("");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   const [category, setCategory] = useState<BudgetCategory>("Ostatní");
@@ -105,11 +130,23 @@ export default function App() {
   const [actual, setActual] = useState("");
   const [deposit, setDeposit] = useState("");
   const [fullyPaid, setFullyPaid] = useState(false);
+  const [budgetOwner, setBudgetOwner] = useState<Person>("Oba");
+  const [vendor, setVendor] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [paymentStatus, setPaymentStatus] =
+    useState<PaymentStatus>("Nezaplaceno");
+  const [budgetNote, setBudgetNote] = useState("");
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
 
   const [guestName, setGuestName] = useState("");
   const [guestGroup, setGuestGroup] = useState<GuestGroup>("Rodina");
   const [guestNote, setGuestNote] = useState("");
+  const [guestSide, setGuestSide] = useState<GuestSide>("Společní");
+  const [guestRsvp, setGuestRsvp] =
+    useState<RsvpStatus>("Bez odpovědi");
+  const [guestCount, setGuestCount] = useState("1");
+  const [guestAccommodation, setGuestAccommodation] = useState(false);
+  const [guestTransport, setGuestTransport] = useState(false);
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
 
   async function loadAll() {
@@ -140,6 +177,9 @@ export default function App() {
   function resetTaskForm() {
     setTaskInput("");
     setTaskDeadline("");
+    setTaskOwner("Oba");
+    setTaskStatus("To do");
+    setTaskNote("");
     setEditingTaskId(null);
   }
 
@@ -150,6 +190,11 @@ export default function App() {
     setActual("");
     setDeposit("");
     setFullyPaid(false);
+    setBudgetOwner("Oba");
+    setVendor("");
+    setDueDate("");
+    setPaymentStatus("Nezaplaceno");
+    setBudgetNote("");
     setEditingBudgetId(null);
   }
 
@@ -157,11 +202,25 @@ export default function App() {
     setGuestName("");
     setGuestGroup("Rodina");
     setGuestNote("");
+    setGuestSide("Společní");
+    setGuestRsvp("Bez odpovědi");
+    setGuestCount("1");
+    setGuestAccommodation(false);
+    setGuestTransport(false);
     setEditingGuestId(null);
   }
 
   async function saveTask() {
     if (!taskInput.trim()) return;
+
+    const payload = {
+      text: taskInput.trim(),
+      deadline: taskDeadline || null,
+      done: taskStatus === "Hotovo",
+      owner: taskOwner,
+      status: taskStatus,
+      note: taskNote.trim() || null,
+    };
 
     try {
       setSaving(true);
@@ -170,10 +229,7 @@ export default function App() {
       if (editingTaskId) {
         const updated = await supabaseRequest(`tasks?id=eq.${editingTaskId}`, {
           method: "PATCH",
-          body: JSON.stringify({
-            text: taskInput.trim(),
-            deadline: taskDeadline || null,
-          }),
+          body: JSON.stringify(payload),
         });
 
         const row = updated?.[0] as Task;
@@ -181,13 +237,7 @@ export default function App() {
       } else {
         const inserted = await supabaseRequest("tasks", {
           method: "POST",
-          body: JSON.stringify([
-            {
-              text: taskInput.trim(),
-              deadline: taskDeadline || null,
-              done: false,
-            },
-          ]),
+          body: JSON.stringify([payload]),
         });
 
         const row = inserted?.[0] as Task;
@@ -203,11 +253,17 @@ export default function App() {
   }
 
   async function toggleTask(task: Task) {
+    const nextDone = !task.done;
+    const nextStatus: TaskStatus = nextDone ? "Hotovo" : "To do";
+
     try {
       setError("");
       const updated = await supabaseRequest(`tasks?id=eq.${task.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ done: !task.done }),
+        body: JSON.stringify({
+          done: nextDone,
+          status: nextStatus,
+        }),
       });
 
       const row = updated?.[0] as Task;
@@ -235,11 +291,21 @@ export default function App() {
   function startEditTask(task: Task) {
     setTaskInput(task.text);
     setTaskDeadline(task.deadline || "");
+    setTaskOwner(task.owner || "Oba");
+    setTaskStatus(task.status || (task.done ? "Hotovo" : "To do"));
+    setTaskNote(task.note || "");
     setEditingTaskId(task.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function saveBudgetItem() {
     if (!budgetName.trim()) return;
+
+    const resolvedPaymentStatus: PaymentStatus = fullyPaid
+      ? "Zaplaceno"
+      : Number(deposit) > 0
+      ? "Záloha"
+      : paymentStatus;
 
     const payload = {
       category,
@@ -248,6 +314,11 @@ export default function App() {
       actual: Number(actual) || 0,
       deposit: Number(deposit) || 0,
       fully_paid: fullyPaid,
+      owner: budgetOwner,
+      vendor: vendor.trim() || null,
+      due_date: dueDate || null,
+      payment_status: resolvedPaymentStatus,
+      note: budgetNote.trim() || null,
     };
 
     try {
@@ -308,6 +379,11 @@ export default function App() {
     setActual(String(item.actual));
     setDeposit(String(item.deposit));
     setFullyPaid(item.fully_paid);
+    setBudgetOwner(item.owner || "Oba");
+    setVendor(item.vendor || "");
+    setDueDate(item.due_date || "");
+    setPaymentStatus(item.payment_status || "Nezaplaceno");
+    setBudgetNote(item.note || "");
     setEditingBudgetId(item.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -318,8 +394,13 @@ export default function App() {
     const payload = {
       name: guestName.trim(),
       group: guestGroup,
-      confirmed: false,
+      confirmed: guestRsvp === "Potvrzeno",
       note: guestNote.trim() || null,
+      side: guestSide,
+      rsvp_status: guestRsvp,
+      guest_count: Number(guestCount) || 1,
+      accommodation: guestAccommodation,
+      transport: guestTransport,
     };
 
     try {
@@ -327,13 +408,9 @@ export default function App() {
       setError("");
 
       if (editingGuestId) {
-        const existing = guests.find((g) => g.id === editingGuestId);
         const updated = await supabaseRequest(`guests?id=eq.${editingGuestId}`, {
           method: "PATCH",
-          body: JSON.stringify({
-            ...payload,
-            confirmed: existing?.confirmed ?? false,
-          }),
+          body: JSON.stringify(payload),
         });
 
         const row = updated?.[0] as Guest;
@@ -357,11 +434,17 @@ export default function App() {
   }
 
   async function toggleGuest(guest: Guest) {
+    const nextConfirmed = !guest.confirmed;
+    const nextRsvp: RsvpStatus = nextConfirmed ? "Potvrzeno" : "Bez odpovědi";
+
     try {
       setError("");
       const updated = await supabaseRequest(`guests?id=eq.${guest.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ confirmed: !guest.confirmed }),
+        body: JSON.stringify({
+          confirmed: nextConfirmed,
+          rsvp_status: nextRsvp,
+        }),
       });
 
       const row = updated?.[0] as Guest;
@@ -390,28 +473,36 @@ export default function App() {
     setGuestName(guest.name);
     setGuestGroup(guest.group);
     setGuestNote(guest.note || "");
+    setGuestSide(guest.side || "Společní");
+    setGuestRsvp(
+      guest.rsvp_status || (guest.confirmed ? "Potvrzeno" : "Bez odpovědi")
+    );
+    setGuestCount(String(guest.guest_count || 1));
+    setGuestAccommodation(Boolean(guest.accommodation));
+    setGuestTransport(Boolean(guest.transport));
     setEditingGuestId(guest.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function startEditTask(task: Task) {
-    setTaskInput(task.text);
-    setTaskDeadline(task.deadline || "");
-    setEditingTaskId(task.id);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
   function remaining(item: BudgetItem) {
-    if (item.fully_paid) return 0;
+    if (item.fully_paid || item.payment_status === "Zaplaceno") return 0;
     return Math.max(item.actual - item.deposit, 0);
   }
 
   const taskStats = useMemo(() => {
-    const completed = tasks.filter((t) => t.done).length;
+    const completed = tasks.filter((t) => t.status === "Hotovo" || t.done).length;
+    const waiting = tasks.filter((t) => t.status === "Čeká").length;
+    const byOwner = {
+      Ondra: tasks.filter((t) => t.owner === "Ondra").length,
+      Kája: tasks.filter((t) => t.owner === "Kája").length,
+      Oba: tasks.filter((t) => t.owner === "Oba").length,
+    };
     return {
       total: tasks.length,
       completed,
       pending: tasks.length - completed,
+      waiting,
+      byOwner,
     };
   }, [tasks]);
 
@@ -420,18 +511,35 @@ export default function App() {
     const totalActual = budgetItems.reduce((s, i) => s + i.actual, 0);
     const totalDeposit = budgetItems.reduce((s, i) => s + i.deposit, 0);
     const totalRemaining = budgetItems.reduce((s, i) => s + remaining(i), 0);
+    const dueSoon = budgetItems.filter(
+      (i) => i.due_date && new Date(i.due_date).getTime() >= Date.now()
+    ).length;
 
-    return { totalPlanned, totalActual, totalDeposit, totalRemaining };
+    return { totalPlanned, totalActual, totalDeposit, totalRemaining, dueSoon };
   }, [budgetItems]);
 
   const guestStats = useMemo(() => {
-    const confirmed = guests.filter((g) => g.confirmed).length;
+    const confirmed = guests.filter((g) => g.rsvp_status === "Potvrzeno").length;
+    const pending = guests.filter((g) => g.rsvp_status === "Bez odpovědi").length;
+    const declined = guests.filter((g) => g.rsvp_status === "Odmítl").length;
+    const totalPeople = guests.reduce((sum, g) => sum + (g.guest_count || 1), 0);
+
     return {
       total: guests.length,
       confirmed,
-      pending: guests.length - confirmed,
+      pending,
+      declined,
+      totalPeople,
     };
   }, [guests]);
+
+  const recentItems = useMemo(() => {
+    return {
+      task: tasks[0]?.text || "-",
+      budget: budgetItems[0]?.name || "-",
+      guest: guests[0]?.name || "-",
+    };
+  }, [tasks, budgetItems, guests]);
 
   if (loading) {
     return <div style={loadingStyle}>Načítám data ze Supabase…</div>;
@@ -449,12 +557,46 @@ export default function App() {
       {error && <div style={errorStyle}>{error}</div>}
 
       <section style={sectionStyle}>
+        <h2 style={sectionTitleStyle}>Přehled pro vás dva</h2>
+        <div style={cardListStyle}>
+          <div style={cardStyle}>
+            <div style={cardTitleStyle}>Co hoří</div>
+            <div style={metaGridStyle}>
+              <div>Úkoly čekající na posun: <strong>{taskStats.pending}</strong></div>
+              <div>Úkoly ve stavu Čeká: <strong>{taskStats.waiting}</strong></div>
+              <div>Položky se splatností: <strong>{budgetStats.dueSoon}</strong></div>
+              <div>Hosté bez odpovědi: <strong>{guestStats.pending}</strong></div>
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={cardTitleStyle}>Kdo co řeší</div>
+            <div style={metaGridStyle}>
+              <div>Ondra má úkolů: <strong>{taskStats.byOwner.Ondra}</strong></div>
+              <div>Kája má úkolů: <strong>{taskStats.byOwner.Kája}</strong></div>
+              <div>Společných úkolů: <strong>{taskStats.byOwner.Oba}</strong></div>
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={cardTitleStyle}>Poslední změny</div>
+            <div style={metaGridStyle}>
+              <div>Poslední úkol: <strong>{recentItems.task}</strong></div>
+              <div>Poslední rozpočet: <strong>{recentItems.budget}</strong></div>
+              <div>Poslední host: <strong>{recentItems.guest}</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>Checklist</h2>
 
         <div style={statsWrapStyle}>
-          <div style={statBoxStyle}>Úkolů celkem: {taskStats.total}</div>
+          <div style={statBoxStyle}>Úkolů: {taskStats.total}</div>
           <div style={statBoxStyle}>Hotovo: {taskStats.completed}</div>
           <div style={statBoxStyle}>Zbývá: {taskStats.pending}</div>
+          <div style={statBoxStyle}>Čeká: {taskStats.waiting}</div>
         </div>
 
         <div style={formStackStyle}>
@@ -464,12 +606,45 @@ export default function App() {
             placeholder="Např. zamluvit místo"
             style={inputStyle}
           />
+
+          <select
+            value={taskOwner}
+            onChange={(e) => setTaskOwner(e.target.value as Person)}
+            style={inputStyle}
+          >
+            {people.map((person) => (
+              <option key={person} value={person}>
+                {person}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={taskStatus}
+            onChange={(e) => setTaskStatus(e.target.value as TaskStatus)}
+            style={inputStyle}
+          >
+            {taskStatuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+
           <input
             type="date"
             value={taskDeadline}
             onChange={(e) => setTaskDeadline(e.target.value)}
             style={inputStyle}
           />
+
+          <input
+            value={taskNote}
+            onChange={(e) => setTaskNote(e.target.value)}
+            placeholder="Poznámka"
+            style={inputStyle}
+          />
+
           <div style={buttonRowStyle}>
             <button onClick={saveTask} style={primaryButtonStyle}>
               {editingTaskId ? "Uložit" : "Přidat"}
@@ -487,18 +662,26 @@ export default function App() {
 
           {tasks.map((task) => (
             <div key={task.id} style={cardStyle}>
+              <div style={badgeRowStyle}>
+                <span style={badgeStyle}>{task.owner}</span>
+                <span style={badgeStyle}>{task.status}</span>
+              </div>
+
               <div style={cardTopRowStyle}>
                 <label style={checkboxRowStyle}>
                   <input
                     type="checkbox"
-                    checked={task.done}
+                    checked={task.done || task.status === "Hotovo"}
                     onChange={() => toggleTask(task)}
                   />
                   <span
                     style={{
                       ...cardTitleStyle,
-                      textDecoration: task.done ? "line-through" : "none",
-                      opacity: task.done ? 0.7 : 1,
+                      textDecoration:
+                        task.done || task.status === "Hotovo"
+                          ? "line-through"
+                          : "none",
+                      opacity: task.done || task.status === "Hotovo" ? 0.7 : 1,
                     }}
                   >
                     {task.text}
@@ -506,13 +689,9 @@ export default function App() {
                 </label>
               </div>
 
-              <div style={metaStyle}>
-                Deadline:{" "}
-                <strong>
-                  {task.deadline
-                    ? new Date(task.deadline).toLocaleDateString("cs-CZ")
-                    : "-"}
-                </strong>
+              <div style={metaGridStyle}>
+                <div>Deadline: <strong>{formatDate(task.deadline)}</strong></div>
+                <div>Poznámka: <strong>{task.note || "-"}</strong></div>
               </div>
 
               <div style={buttonRowStyle}>
@@ -564,6 +743,44 @@ export default function App() {
             style={inputStyle}
           />
 
+          <select
+            value={budgetOwner}
+            onChange={(e) => setBudgetOwner(e.target.value as Person)}
+            style={inputStyle}
+          >
+            {people.map((person) => (
+              <option key={person} value={person}>
+                {person}
+              </option>
+            ))}
+          </select>
+
+          <input
+            value={vendor}
+            onChange={(e) => setVendor(e.target.value)}
+            placeholder="Dodavatel / kontakt"
+            style={inputStyle}
+          />
+
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            style={inputStyle}
+          />
+
+          <select
+            value={paymentStatus}
+            onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
+            style={inputStyle}
+          >
+            {paymentStatuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+
           <input
             type="number"
             value={planned}
@@ -597,6 +814,13 @@ export default function App() {
             Zaplaceno celé
           </label>
 
+          <input
+            value={budgetNote}
+            onChange={(e) => setBudgetNote(e.target.value)}
+            placeholder="Poznámka"
+            style={inputStyle}
+          />
+
           <div style={buttonRowStyle}>
             <button onClick={saveBudgetItem} style={primaryButtonStyle}>
               {editingBudgetId ? "Uložit" : "Přidat"}
@@ -616,18 +840,22 @@ export default function App() {
 
           {budgetItems.map((item) => (
             <div key={item.id} style={cardStyle}>
-              <div style={badgeStyle}>{item.category}</div>
+              <div style={badgeRowStyle}>
+                <span style={badgeStyle}>{item.category}</span>
+                <span style={badgeStyle}>{item.owner || "Oba"}</span>
+                <span style={badgeStyle}>{item.payment_status || "Nezaplaceno"}</span>
+              </div>
 
               <div style={cardTitleStyle}>{item.name}</div>
 
               <div style={metaGridStyle}>
+                <div>Dodavatel: <strong>{item.vendor || "-"}</strong></div>
+                <div>Splatnost: <strong>{formatDate(item.due_date)}</strong></div>
                 <div>Plán: <strong>{item.planned} Kč</strong></div>
                 <div>Skutečnost: <strong>{item.actual} Kč</strong></div>
                 <div>Záloha: <strong>{item.deposit} Kč</strong></div>
                 <div>Zbývá: <strong>{remaining(item)} Kč</strong></div>
-                <div>
-                  Stav: <strong>{item.fully_paid ? "Zaplaceno" : "Nezaplaceno"}</strong>
-                </div>
+                <div>Poznámka: <strong>{item.note || "-"}</strong></div>
               </div>
 
               <div style={buttonRowStyle}>
@@ -653,9 +881,11 @@ export default function App() {
         <h2 style={sectionTitleStyle}>Hosté</h2>
 
         <div style={statsWrapStyle}>
-          <div style={statBoxStyle}>Hostů celkem: {guestStats.total}</div>
+          <div style={statBoxStyle}>Hostů: {guestStats.total}</div>
           <div style={statBoxStyle}>Potvrzeno: {guestStats.confirmed}</div>
-          <div style={statBoxStyle}>Čeká: {guestStats.pending}</div>
+          <div style={statBoxStyle}>Bez odpovědi: {guestStats.pending}</div>
+          <div style={statBoxStyle}>Odmítlo: {guestStats.declined}</div>
+          <div style={statBoxStyle}>Lidí celkem: {guestStats.totalPeople}</div>
         </div>
 
         <div style={formStackStyle}>
@@ -677,6 +907,57 @@ export default function App() {
               </option>
             ))}
           </select>
+
+          <select
+            value={guestSide}
+            onChange={(e) => setGuestSide(e.target.value as GuestSide)}
+            style={inputStyle}
+          >
+            {guestSides.map((side) => (
+              <option key={side} value={side}>
+                {side}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={guestRsvp}
+            onChange={(e) => setGuestRsvp(e.target.value as RsvpStatus)}
+            style={inputStyle}
+          >
+            {rsvpStatuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="number"
+            min="1"
+            value={guestCount}
+            onChange={(e) => setGuestCount(e.target.value)}
+            placeholder="Počet osob"
+            style={inputStyle}
+          />
+
+          <label style={checkboxLineStyle}>
+            <input
+              type="checkbox"
+              checked={guestAccommodation}
+              onChange={(e) => setGuestAccommodation(e.target.checked)}
+            />
+            Potřebuje ubytování
+          </label>
+
+          <label style={checkboxLineStyle}>
+            <input
+              type="checkbox"
+              checked={guestTransport}
+              onChange={(e) => setGuestTransport(e.target.checked)}
+            />
+            Potřebuje odvoz
+          </label>
 
           <input
             value={guestNote}
@@ -702,6 +983,12 @@ export default function App() {
 
           {guests.map((guest) => (
             <div key={guest.id} style={cardStyle}>
+              <div style={badgeRowStyle}>
+                <span style={badgeStyle}>{guest.side || "Společní"}</span>
+                <span style={badgeStyle}>{guest.group}</span>
+                <span style={badgeStyle}>{guest.rsvp_status || "Bez odpovědi"}</span>
+              </div>
+
               <div style={cardTopRowStyle}>
                 <label style={checkboxRowStyle}>
                   <input
@@ -714,8 +1001,9 @@ export default function App() {
               </div>
 
               <div style={metaGridStyle}>
-                <div>Skupina: <strong>{guest.group}</strong></div>
-                <div>Stav: <strong>{guest.confirmed ? "Potvrzeno" : "Čeká"}</strong></div>
+                <div>Počet osob: <strong>{guest.guest_count || 1}</strong></div>
+                <div>Ubytování: <strong>{guest.accommodation ? "Ano" : "Ne"}</strong></div>
+                <div>Odvoz: <strong>{guest.transport ? "Ano" : "Ne"}</strong></div>
                 <div>Poznámka: <strong>{guest.note || "-"}</strong></div>
               </div>
 
@@ -889,11 +1177,6 @@ const checkboxRowStyle: React.CSSProperties = {
   alignItems: "center",
 };
 
-const metaStyle: React.CSSProperties = {
-  marginBottom: 12,
-  color: "#444",
-};
-
 const metaGridStyle: React.CSSProperties = {
   display: "grid",
   gap: 8,
@@ -909,6 +1192,12 @@ const badgeStyle: React.CSSProperties = {
   borderRadius: 999,
   fontWeight: 700,
   fontSize: 13,
+};
+
+const badgeRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
   marginBottom: 10,
 };
 
