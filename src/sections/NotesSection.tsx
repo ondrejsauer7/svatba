@@ -1,0 +1,144 @@
+import React from "react";
+import type { Note, Person } from "../types";
+import { formatDate } from "../lib/utils";
+import {
+  badgeRowStyle,
+  badgeStyle,
+  buttonRowStyle,
+  cardListStyle,
+  cardStyle,
+  cardTitleStyle,
+  dangerButtonStyle,
+  emptyStyle,
+  formStackStyle,
+  primaryButtonStyle,
+  secondaryButtonStyle,
+  sectionStyle,
+  sectionToggleStyle,
+  textareaStyle,
+  inputStyle,
+  metaGridStyle,
+} from "../ui";
+
+type Props = {
+  isOpen: boolean;
+  onToggle: () => void;
+  people: Person[];
+  noteInput: string;
+  setNoteInput: (v: string) => void;
+  noteAuthor: Person;
+  setNoteAuthor: (v: Person) => void;
+  editingNoteId: string | null;
+  saveNote: () => void;
+  resetNoteForm: () => void;
+  saving: boolean;
+  notes: Note[];
+  startEditNote: (note: Note) => void;
+  deleteNote: (id: string) => void;
+};
+
+export default function NotesSection(props: Props) {
+  const {
+    isOpen,
+    onToggle,
+    people,
+    noteInput,
+    setNoteInput,
+    noteAuthor,
+    setNoteAuthor,
+    editingNoteId,
+    saveNote,
+    resetNoteForm,
+    saving,
+    notes,
+    startEditNote,
+    deleteNote,
+  } = props;
+
+  return (
+    <section style={sectionStyle}>
+      <button onClick={onToggle} style={sectionToggleStyle}>
+        Poznámky / Nápady {isOpen ? "▲" : "▼"}
+      </button>
+
+      {isOpen && (
+        <>
+          <div style={formStackStyle}>
+            <textarea
+              value={noteInput}
+              onChange={(e) => setNoteInput(e.target.value)}
+              placeholder="Sem si pište nápady, co probrat, co dokoupit, co rozhodnout..."
+              style={textareaStyle}
+            />
+
+            <select
+              value={noteAuthor}
+              onChange={(e) => setNoteAuthor(e.target.value as Person)}
+              style={inputStyle}
+            >
+              {people.map((person) => (
+                <option key={person} value={person}>
+                  Autor: {person}
+                </option>
+              ))}
+            </select>
+
+            <div style={buttonRowStyle}>
+              <button
+                onClick={saveNote}
+                style={primaryButtonStyle}
+                disabled={saving}
+              >
+                {editingNoteId ? "Uložit" : "Přidat poznámku"}
+              </button>
+
+              {editingNoteId && (
+                <button onClick={resetNoteForm} style={secondaryButtonStyle}>
+                  Zrušit
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={cardListStyle}>
+            {notes.length === 0 && (
+              <div style={emptyStyle}>Zatím žádné poznámky.</div>
+            )}
+
+            {notes.map((note) => (
+              <div key={note.id} style={cardStyle}>
+                <div style={badgeRowStyle}>
+                  <span style={badgeStyle}>{note.author}</span>
+                </div>
+
+                <div style={cardTitleStyle}>Poznámka</div>
+
+                <div style={metaGridStyle}>
+                  <div>{note.text}</div>
+                  <div>
+                    Upraveno: <strong>{formatDate(note.updated_at)}</strong>
+                  </div>
+                </div>
+
+                <div style={buttonRowStyle}>
+                  <button
+                    onClick={() => startEditNote(note)}
+                    style={secondaryButtonStyle}
+                  >
+                    Upravit
+                  </button>
+                  <button
+                    onClick={() => deleteNote(note.id)}
+                    style={dangerButtonStyle}
+                  >
+                    Smazat
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
