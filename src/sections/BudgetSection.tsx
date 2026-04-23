@@ -20,7 +20,6 @@ import {
   primaryButtonStyle,
   secondaryButtonStyle,
   sectionStyle,
-  sectionToggleStyle,
   statBoxStyle,
   statsWrapStyle,
   metaGridStyle,
@@ -163,8 +162,24 @@ export default function BudgetSection(props: Props) {
 
   return (
     <section style={sectionStyle}>
-      <button onClick={onToggle} style={sectionToggleStyle}>
-        Rozpočet {isOpen ? "▲" : "▼"}
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          padding: "14px 16px",
+          borderRadius: 16,
+          border: "none",
+          fontWeight: 800,
+          fontSize: 20,
+          marginBottom: 12,
+          cursor: "pointer",
+          color: "#ffffff",
+          background: "linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)",
+          boxShadow: "0 8px 20px rgba(245, 158, 11, 0.25)",
+        }}
+      >
+        💰 Rozpočet {isOpen ? "▲" : "▼"}
       </button>
 
       {isOpen && (
@@ -360,11 +375,11 @@ export default function BudgetSection(props: Props) {
                     ...cardStyle,
                     borderLeft:
                       item.payment_status === "Zaplaceno"
-                        ? "6px solid green"
+                        ? "6px solid #16a34a"
                         : overdue
-                        ? "6px solid red"
+                        ? "6px solid #ef4444"
                         : dueSoon
-                        ? "6px solid orange"
+                        ? "6px solid #f59e0b"
                         : "6px solid transparent",
                   }}
                 >
@@ -373,17 +388,17 @@ export default function BudgetSection(props: Props) {
                     <span style={badgeStyle}>{item.owner || "Oba"}</span>
                     <span style={badgeStyle}>{item.payment_status || "Nezaplaceno"}</span>
                     {overdue && (
-                      <span style={{ ...badgeStyle, background: "#ffe5e5", color: "#900" }}>
+                      <span style={{ ...badgeStyle, background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" }}>
                         Po splatnosti
                       </span>
                     )}
                     {!overdue && dueSoon && (
-                      <span style={{ ...badgeStyle, background: "#fff2e5", color: "#8a4b00" }}>
+                      <span style={{ ...badgeStyle, background: "#fff7ed", color: "#9a3412", border: "1px solid #fed7aa" }}>
                         Do 7 dnů
                       </span>
                     )}
                     {item.payment_status === "Zaplaceno" && (
-                      <span style={{ ...badgeStyle, background: "#e8f7e8", color: "#146314" }}>
+                      <span style={{ ...badgeStyle, background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0" }}>
                         Zaplaceno
                       </span>
                     )}
