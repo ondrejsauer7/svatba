@@ -160,6 +160,37 @@ export default function BudgetSection(props: Props) {
     quickToggleBudgetPaid,
   } = props;
 
+  const categorySummary = categories
+    .map((cat) => {
+      const items = filteredBudget.filter((item) => item.category === cat);
+      const plannedSum = items.reduce((sum, item) => sum + item.planned, 0);
+      const actualSum = items.reduce((sum, item) => sum + item.actual, 0);
+      const paidSum = items.reduce(
+        (sum, item) => sum + (item.actual - getRemaining(item)),
+        0
+      );
+      const count = items.length;
+
+      return {
+        category: cat,
+        count,
+        plannedSum,
+        actualSum,
+        paidSum,
+      };
+    })
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.actualSum - a.actualSum);
+
+  const topExpensiveItems = [...filteredBudget]
+    .sort((a, b) => b.actual - a.actual)
+    .slice(0, 3);
+
+  const paidPercent =
+    budgetStats.totalActual > 0
+      ? Math.round((budgetStats.totalPaid / budgetStats.totalActual) * 100)
+      : 0;
+
   return (
     <section style={sectionStyle}>
       <button
@@ -190,6 +221,95 @@ export default function BudgetSection(props: Props) {
             <div style={statBoxStyle}>Zaplaceno: {budgetStats.totalPaid} Kč</div>
             <div style={statBoxStyle}>Zbývá: {budgetStats.totalRemaining} Kč</div>
             <div style={statBoxStyle}>Po splatnosti: {budgetStats.overdue}</div>
+            <div style={statBoxStyle}>Zaplaceno: {paidPercent} %</div>
+          </div>
+
+          <div
+            style={{
+              ...cardStyle,
+              background: "linear-gradient(180deg, #fff7ed 0%, #ffffff 100%)",
+            }}
+          >
+            <div style={cardTitleStyle}>Přehled kategorií</div>
+
+            {categorySummary.length === 0 && (
+              <div style={emptyStyle}>Zatím nejsou žádné položky rozpočtu.</div>
+            )}
+
+            {categorySummary.length > 0 && (
+              <div style={cardListStyle}>
+                {categorySummary.map((row) => (
+                  <div
+                    key={row.category}
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      border: "1px solid #fed7aa",
+                      background: "#ffffff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        alignItems: "center",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <div style={{ fontWeight: 800 }}>{row.category}</div>
+                      <div style={{ fontSize: 13, opacity: 0.8 }}>
+                        {row.count} položek
+                      </div>
+                    </div>
+
+                    <div style={metaGridStyle}>
+                      <div>Plán: <strong>{row.plannedSum} Kč</strong></div>
+                      <div>Skutečnost: <strong>{row.actualSum} Kč</strong></div>
+                      <div>Zaplaceno: <strong>{row.paidSum} Kč</strong></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
+              ...cardStyle,
+              background: "linear-gradient(180deg, #fff7ed 0%, #ffffff 100%)",
+            }}
+          >
+            <div style={cardTitleStyle}>Nejdražší položky</div>
+
+            {topExpensiveItems.length === 0 && (
+              <div style={emptyStyle}>Zatím žádné položky.</div>
+            )}
+
+            {topExpensiveItems.length > 0 && (
+              <div style={cardListStyle}>
+                {topExpensiveItems.map((item, index) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      border: "1px solid #fed7aa",
+                      background: "#ffffff",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, marginBottom: 6 }}>
+                      {index + 1}. {item.name}
+                    </div>
+                    <div style={metaGridStyle}>
+                      <div>Kategorie: <strong>{item.category}</strong></div>
+                      <div>Skutečnost: <strong>{item.actual} Kč</strong></div>
+                      <div>Zbývá: <strong>{getRemaining(item)} Kč</strong></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={formStackStyle}>
