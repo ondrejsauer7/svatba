@@ -93,6 +93,8 @@ type Props = {
   setTaskPriorityFilter: (v: TaskPriority | "Vše") => void;
   taskSort: "deadline" | "owner" | "priority";
   setTaskSort: (v: "deadline" | "owner" | "priority") => void;
+  taskSearch: string;
+  setTaskSearch: (v: string) => void;
   filteredTasks: Task[];
   toggleTask: (task: Task) => void;
   startEditTask: (task: Task) => void;
@@ -133,6 +135,8 @@ export default function TasksSection(props: Props) {
     setTaskPriorityFilter,
     taskSort,
     setTaskSort,
+    taskSearch,
+    setTaskSearch,
     filteredTasks,
     toggleTask,
     startEditTask,
@@ -326,6 +330,13 @@ export default function TasksSection(props: Props) {
 
           <div style={filterCardStyle}>
             <div style={filterTitleStyle}>Filtry a řazení</div>
+
+            <input
+              value={taskSearch}
+              onChange={(e) => setTaskSearch(e.target.value)}
+              placeholder="Hledat v úkolech a poznámkách"
+              style={inputStyle}
+            />
 
             <div style={chipsWrapStyle}>
               <span style={filterLabelStyle}>Vlastník:</span>
