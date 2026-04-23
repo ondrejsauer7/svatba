@@ -14,7 +14,6 @@ import {
   primaryButtonStyle,
   secondaryButtonStyle,
   sectionStyle,
-  sectionToggleStyle,
   textareaStyle,
   inputStyle,
   metaGridStyle,
@@ -57,8 +56,24 @@ export default function NotesSection(props: Props) {
 
   return (
     <section style={sectionStyle}>
-      <button onClick={onToggle} style={sectionToggleStyle}>
-        Poznámky / Nápady {isOpen ? "▲" : "▼"}
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          padding: "14px 16px",
+          borderRadius: 16,
+          border: "none",
+          fontWeight: 800,
+          fontSize: 20,
+          marginBottom: 12,
+          cursor: "pointer",
+          color: "#ffffff",
+          background: "linear-gradient(135deg, #9333ea 0%, #7c3aed 100%)",
+          boxShadow: "0 8px 20px rgba(147, 51, 234, 0.25)",
+        }}
+      >
+        📝 Poznámky / Nápady {isOpen ? "▲" : "▼"}
       </button>
 
       {isOpen && (
