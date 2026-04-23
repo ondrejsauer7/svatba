@@ -149,15 +149,14 @@ export default function TasksSection(props: Props) {
     if (!editingTaskId || !isOpen || !editFormRef.current) return;
 
     const scrollToForm = () => {
-      editFormRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "nearest",
-      });
+      const node = editFormRef.current;
+      if (!node) return;
+      const top = window.scrollY + node.getBoundingClientRect().top - 20;
+      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     };
 
     const rafId = window.requestAnimationFrame(scrollToForm);
-    const timeoutId = window.setTimeout(scrollToForm, 220);
+    const timeoutId = window.setTimeout(scrollToForm, 260);
 
     return () => {
       window.cancelAnimationFrame(rafId);
