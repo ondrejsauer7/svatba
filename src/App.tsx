@@ -31,7 +31,6 @@ import {
   heroStatValueStyle,
   heroStatsGridStyle,
   heroStyle,
-  heroSubTitleStyle,
   loadingStyle,
   primaryButtonStyle,
   quickNavButtonStyle,
@@ -1330,10 +1329,6 @@ export default function App() {
     <div style={containerStyle}>
       <header style={heroStyle} className="wedding-reveal">
         <h1 style={titleStyle}>Svatba planner</h1>
-        <p style={heroSubTitleStyle}>
-          Jedno misto pro ukoly, rozpocet, hosty i poznamky. Bez prihlaseni, jen
-          rychle planovani.
-        </p>
         <div style={heroStatsGridStyle}>
           <div style={heroStatCardStyle}>
             <p style={heroStatLabelStyle}>Postup checklistu</p>
