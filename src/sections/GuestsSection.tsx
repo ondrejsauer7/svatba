@@ -66,10 +66,14 @@ type Props = {
   setGuestSideFilter: (v: GuestSide | "Vše") => void;
   guestRsvpFilter: RsvpStatus | "Vše";
   setGuestRsvpFilter: (v: RsvpStatus | "Vše") => void;
+  guestSearch: string;
+  setGuestSearch: (v: string) => void;
   filteredGuests: Guest[];
   toggleGuest: (guest: Guest) => void;
   startEditGuest: (guest: Guest) => void;
   deleteGuest: (id: string) => void;
+  quickToggleGuestAccommodation: (guest: Guest) => void;
+  quickToggleGuestChild: (guest: Guest) => void;
 };
 
 export default function GuestsSection(props: Props) {
@@ -104,10 +108,14 @@ export default function GuestsSection(props: Props) {
     setGuestSideFilter,
     guestRsvpFilter,
     setGuestRsvpFilter,
+    guestSearch,
+    setGuestSearch,
     filteredGuests,
     toggleGuest,
     startEditGuest,
     deleteGuest,
+    quickToggleGuestAccommodation,
+    quickToggleGuestChild,
   } = props;
 
   return (
@@ -203,6 +211,13 @@ export default function GuestsSection(props: Props) {
           <div style={filterCardStyle}>
             <div style={filterTitleStyle}>Filtry</div>
 
+            <input
+              value={guestSearch}
+              onChange={(e) => setGuestSearch(e.target.value)}
+              placeholder="Hledat hosta nebo poznámku"
+              style={inputStyle}
+            />
+
             <div style={chipsWrapStyle}>
               <span style={filterLabelStyle}>Strana:</span>
               <button style={chipStyle(guestSideFilter === "Vše")} onClick={() => setGuestSideFilter("Vše")}>
@@ -261,6 +276,12 @@ export default function GuestsSection(props: Props) {
                 <div style={buttonRowStyle}>
                   <button onClick={() => toggleGuest(guest)} style={secondaryButtonStyle}>
                     {guest.confirmed ? "Zrušit potvrzení" : "Potvrdit"}
+                  </button>
+                  <button onClick={() => quickToggleGuestAccommodation(guest)} style={secondaryButtonStyle}>
+                    {guest.accommodation ? "Zrušit přespání" : "Nastavit přespání"}
+                  </button>
+                  <button onClick={() => quickToggleGuestChild(guest)} style={secondaryButtonStyle}>
+                    {guest.child ? "Není dítě" : "Je dítě"}
                   </button>
                   <button onClick={() => startEditGuest(guest)} style={secondaryButtonStyle}>
                     Upravit
