@@ -19,7 +19,6 @@ import {
   primaryButtonStyle,
   secondaryButtonStyle,
   sectionStyle,
-  sectionToggleStyle,
   statBoxStyle,
   statsWrapStyle,
   metaGridStyle,
@@ -120,8 +119,24 @@ export default function GuestsSection(props: Props) {
 
   return (
     <section style={sectionStyle}>
-      <button onClick={onToggle} style={sectionToggleStyle}>
-        Hosté {isOpen ? "▲" : "▼"}
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          padding: "14px 16px",
+          borderRadius: 16,
+          border: "none",
+          fontWeight: 800,
+          fontSize: 20,
+          marginBottom: 12,
+          cursor: "pointer",
+          color: "#ffffff",
+          background: "linear-gradient(135deg, #16a34a 0%, #059669 100%)",
+          boxShadow: "0 8px 20px rgba(22, 163, 74, 0.25)",
+        }}
+      >
+        👨‍👩‍👧‍👦 Hosté {isOpen ? "▲" : "▼"}
       </button>
 
       {isOpen && (
