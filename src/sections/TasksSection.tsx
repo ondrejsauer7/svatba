@@ -20,7 +20,6 @@ import {
   primaryButtonStyle,
   secondaryButtonStyle,
   sectionStyle,
-  sectionToggleStyle,
   statBoxStyle,
   statsWrapStyle,
   metaGridStyle,
@@ -143,19 +142,25 @@ export default function TasksSection(props: Props) {
     deleteTask,
   } = props;
 
-  const todayTasks = filteredTasks.filter(
+  const [showCompleted, setShowCompleted] = React.useState(false);
+
+  const visibleTasks = showCompleted
+    ? filteredTasks
+    : filteredTasks.filter((task) => task.status !== "Hotovo" && !task.done);
+
+  const todayTasks = visibleTasks.filter(
     (task) => getTaskBucket(task.deadline) === "today"
   );
 
-  const soonTasks = filteredTasks.filter(
+  const soonTasks = visibleTasks.filter(
     (task) => getTaskBucket(task.deadline) === "soon"
   );
 
-  const laterTasks = filteredTasks.filter(
+  const laterTasks = visibleTasks.filter(
     (task) => getTaskBucket(task.deadline) === "later"
   );
 
-  const noDeadlineTasks = filteredTasks.filter(
+  const noDeadlineTasks = visibleTasks.filter(
     (task) => getTaskBucket(task.deadline) === "no_deadline"
   );
 
@@ -169,11 +174,11 @@ export default function TasksSection(props: Props) {
           ...cardStyle,
           borderLeft:
             task.status === "Hotovo"
-              ? "6px solid green"
+              ? "6px solid #16a34a"
               : task.priority === "Vysoká"
-              ? "6px solid orange"
+              ? "6px solid #f59e0b"
               : overdue
-              ? "6px solid red"
+              ? "6px solid #ef4444"
               : "6px solid transparent",
         }}
       >
@@ -185,8 +190,9 @@ export default function TasksSection(props: Props) {
             <span
               style={{
                 ...badgeStyle,
-                background: "#ffe5e5",
-                color: "#900",
+                background: "#fee2e2",
+                color: "#991b1b",
+                border: "1px solid #fecaca",
               }}
             >
               Po termínu
@@ -228,8 +234,24 @@ export default function TasksSection(props: Props) {
 
   return (
     <section style={sectionStyle}>
-      <button onClick={onToggle} style={sectionToggleStyle}>
-        Checklist {isOpen ? "▲" : "▼"}
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          padding: "14px 16px",
+          borderRadius: 16,
+          border: "none",
+          fontWeight: 800,
+          fontSize: 20,
+          marginBottom: 12,
+          cursor: "pointer",
+          color: "#ffffff",
+          background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)",
+          boxShadow: "0 8px 20px rgba(37, 99, 235, 0.25)",
+        }}
+      >
+        ✅ Checklist {isOpen ? "▲" : "▼"}
       </button>
 
       {isOpen && (
@@ -338,6 +360,13 @@ export default function TasksSection(props: Props) {
               style={inputStyle}
             />
 
+            <button
+              onClick={() => setShowCompleted(!showCompleted)}
+              style={secondaryButtonStyle}
+            >
+              {showCompleted ? "Skrýt hotové úkoly" : "Zobrazit hotové úkoly"}
+            </button>
+
             <div style={chipsWrapStyle}>
               <span style={filterLabelStyle}>Vlastník:</span>
               <button
@@ -409,7 +438,7 @@ export default function TasksSection(props: Props) {
           </div>
 
           <div style={cardListStyle}>
-            {filteredTasks.length === 0 && (
+            {visibleTasks.length === 0 && (
               <div style={emptyStyle}>Žádné úkoly pro aktuální filtr.</div>
             )}
 
