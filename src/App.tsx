@@ -16,7 +16,6 @@ import { supabaseRequest } from "./lib/supabase";
 import {
   getBudgetStats,
   getGuestStats,
-  getRemaining,
   getTaskStats,
   normalizeGuestConfirmed,
   normalizePaymentStatus,
@@ -121,6 +120,7 @@ export default function App() {
   const [taskSort, setTaskSort] = useState<"deadline" | "owner" | "priority">(
     "deadline"
   );
+  const [taskSearch, setTaskSearch] = useState("");
 
   const [budgetCategoryFilter, setBudgetCategoryFilter] =
     useState<BudgetCategory | "Vše">("Vše");
@@ -131,11 +131,13 @@ export default function App() {
   const [budgetSort, setBudgetSort] = useState<
     "due_date" | "category" | "remaining"
   >("due_date");
+  const [budgetSearch, setBudgetSearch] = useState("");
 
   const [guestSideFilter, setGuestSideFilter] =
     useState<GuestSide | "Vše">("Vše");
   const [guestRsvpFilter, setGuestRsvpFilter] =
     useState<RsvpStatus | "Vše">("Vše");
+  const [guestSearch, setGuestSearch] = useState("");
 
   async function loadAll() {
     try {
@@ -233,14 +235,11 @@ export default function App() {
       id: string;
     }[];
 
-    if (existing.length > 0) {
-      const ids = existing.map((x) => x.id);
-      for (const id of ids) {
-        await supabaseRequest(`${tableName}?id=eq.${id}`, {
-          method: "DELETE",
-          headers: { Prefer: "return=minimal" },
-        });
-      }
+    for (const row of existing) {
+      await supabaseRequest(`${tableName}?id=eq.${row.id}`, {
+        method: "DELETE",
+        headers: { Prefer: "return=minimal" },
+      });
     }
 
     if (items.length > 0) {
@@ -259,6 +258,11 @@ export default function App() {
       setSaving(true);
       setError("");
 
+      const shouldReplace = window.confirm(
+        "Import přepíše všechna současná data. Pokračovat?"
+      );
+      if (!shouldReplace) return;
+
       const text = await file.text();
       const data = JSON.parse(text) as Partial<BackupFile>;
 
@@ -273,6 +277,7 @@ export default function App() {
       await replaceTableData("guests", importedGuests);
 
       await loadAll();
+      alert("Import hotový.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import selhal");
     } finally {
@@ -354,6 +359,9 @@ export default function App() {
   async function deleteTask(id: string) {
     try {
       setError("");
+      const shouldDelete = window.confirm("Opravdu smazat úkol?");
+      if (!shouldDelete) return;
+
       await supabaseRequest(`tasks?id=eq.${id}`, {
         method: "DELETE",
         headers: { Prefer: "return=minimal" },
@@ -448,6 +456,9 @@ export default function App() {
   async function deleteBudgetItem(id: string) {
     try {
       setError("");
+      const shouldDelete = window.confirm("Opravdu smazat položku rozpočtu?");
+      if (!shouldDelete) return;
+
       await supabaseRequest(`budget?id=eq.${id}`, {
         method: "DELETE",
         headers: { Prefer: "return=minimal" },
@@ -477,6 +488,25 @@ export default function App() {
     setBudgetUpdatedBy((item.updated_by as Person) || "Oba");
     setEditingBudgetId(item.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function quickToggleBudgetPaid(item: BudgetItem) {
+    try {
+      setError("");
+      const updated = await supabaseRequest(`budget?id=eq.${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          fully_paid: !item.fully_paid,
+          payment_status: !item.fully_paid ? "Zaplaceno" : "Nezaplaceno",
+          updated_at: new Date().toISOString(),
+        }),
+      });
+
+      const row = updated?.[0] as BudgetItem;
+      setBudgetItems((prev) => prev.map((b) => (b.id === row.id ? row : b)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při změně platby");
+    }
   }
 
   async function saveGuest() {
@@ -552,9 +582,48 @@ export default function App() {
     }
   }
 
+  async function quickToggleGuestAccommodation(guest: Guest) {
+    try {
+      setError("");
+      const updated = await supabaseRequest(`guests?id=eq.${guest.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          accommodation: !guest.accommodation,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+
+      const row = updated?.[0] as Guest;
+      setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při změně přespání");
+    }
+  }
+
+  async function quickToggleGuestChild(guest: Guest) {
+    try {
+      setError("");
+      const updated = await supabaseRequest(`guests?id=eq.${guest.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          child: !guest.child,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+
+      const row = updated?.[0] as Guest;
+      setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při změně dítěte");
+    }
+  }
+
   async function deleteGuest(id: string) {
     try {
       setError("");
+      const shouldDelete = window.confirm("Opravdu smazat hosta?");
+      if (!shouldDelete) return;
+
       await supabaseRequest(`guests?id=eq.${id}`, {
         method: "DELETE",
         headers: { Prefer: "return=minimal" },
@@ -591,8 +660,23 @@ export default function App() {
     if (taskPriorityFilter !== "Vše") {
       list = list.filter((t) => t.priority === taskPriorityFilter);
     }
+    if (taskSearch.trim()) {
+      const q = taskSearch.toLowerCase();
+      list = list.filter(
+        (t) =>
+          t.text.toLowerCase().includes(q) ||
+          (t.note || "").toLowerCase().includes(q)
+      );
+    }
     return sortTasks(list, taskSort);
-  }, [tasks, taskOwnerFilter, taskStatusFilter, taskPriorityFilter, taskSort]);
+  }, [
+    tasks,
+    taskOwnerFilter,
+    taskStatusFilter,
+    taskPriorityFilter,
+    taskSort,
+    taskSearch,
+  ]);
 
   const filteredBudget = useMemo(() => {
     let list = [...budgetItems];
@@ -605,6 +689,15 @@ export default function App() {
     if (budgetOwnerFilter !== "Vše") {
       list = list.filter((b) => b.owner === budgetOwnerFilter);
     }
+    if (budgetSearch.trim()) {
+      const q = budgetSearch.toLowerCase();
+      list = list.filter(
+        (b) =>
+          b.name.toLowerCase().includes(q) ||
+          (b.vendor || "").toLowerCase().includes(q) ||
+          (b.note || "").toLowerCase().includes(q)
+      );
+    }
     return sortBudget(list, budgetSort);
   }, [
     budgetItems,
@@ -612,6 +705,7 @@ export default function App() {
     budgetPaymentFilter,
     budgetOwnerFilter,
     budgetSort,
+    budgetSearch,
   ]);
 
   const filteredGuests = useMemo(() => {
@@ -622,8 +716,16 @@ export default function App() {
     if (guestRsvpFilter !== "Vše") {
       list = list.filter((g) => g.rsvp_status === guestRsvpFilter);
     }
+    if (guestSearch.trim()) {
+      const q = guestSearch.toLowerCase();
+      list = list.filter(
+        (g) =>
+          g.name.toLowerCase().includes(q) ||
+          (g.note || "").toLowerCase().includes(q)
+      );
+    }
     return list;
-  }, [guests, guestSideFilter, guestRsvpFilter]);
+  }, [guests, guestSideFilter, guestRsvpFilter, guestSearch]);
 
   const taskStats = useMemo(() => getTaskStats(tasks), [tasks]);
   const budgetStats = useMemo(() => getBudgetStats(budgetItems), [budgetItems]);
@@ -725,6 +827,8 @@ export default function App() {
         setTaskPriorityFilter={setTaskPriorityFilter}
         taskSort={taskSort}
         setTaskSort={setTaskSort}
+        taskSearch={taskSearch}
+        setTaskSearch={setTaskSearch}
         filteredTasks={filteredTasks}
         toggleTask={toggleTask}
         startEditTask={startEditTask}
@@ -774,9 +878,12 @@ export default function App() {
         setBudgetOwnerFilter={setBudgetOwnerFilter}
         budgetSort={budgetSort}
         setBudgetSort={setBudgetSort}
+        budgetSearch={budgetSearch}
+        setBudgetSearch={setBudgetSearch}
         filteredBudget={filteredBudget}
         startEditBudgetItem={startEditBudgetItem}
         deleteBudgetItem={deleteBudgetItem}
+        quickToggleBudgetPaid={quickToggleBudgetPaid}
       />
 
       <GuestsSection
@@ -810,10 +917,14 @@ export default function App() {
         setGuestSideFilter={setGuestSideFilter}
         guestRsvpFilter={guestRsvpFilter}
         setGuestRsvpFilter={setGuestRsvpFilter}
+        guestSearch={guestSearch}
+        setGuestSearch={setGuestSearch}
         filteredGuests={filteredGuests}
         toggleGuest={toggleGuest}
         startEditGuest={startEditGuest}
         deleteGuest={deleteGuest}
+        quickToggleGuestAccommodation={quickToggleGuestAccommodation}
+        quickToggleGuestChild={quickToggleGuestChild}
       />
     </div>
   );
