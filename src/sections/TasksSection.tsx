@@ -43,6 +43,18 @@ function getTaskBucket(deadline: string | null) {
   return "later";
 }
 
+function isOverdue(deadline: string | null) {
+  if (!deadline) return false;
+
+  const today = new Date();
+  const target = new Date(deadline);
+
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+
+  return target.getTime() < today.getTime();
+}
+
 type Props = {
   isOpen: boolean;
   onToggle: () => void;
@@ -144,6 +156,8 @@ export default function TasksSection(props: Props) {
   );
 
   function renderTaskCard(task: Task) {
+    const overdue = isOverdue(task.deadline);
+
     return (
       <div
         key={task.id}
@@ -154,7 +168,7 @@ export default function TasksSection(props: Props) {
               ? "6px solid green"
               : task.priority === "Vysoká"
               ? "6px solid orange"
-              : task.deadline && new Date(task.deadline) < new Date()
+              : overdue
               ? "6px solid red"
               : "6px solid transparent",
         }}
@@ -163,6 +177,17 @@ export default function TasksSection(props: Props) {
           <span style={badgeStyle}>{task.owner}</span>
           <span style={badgeStyle}>{task.status}</span>
           <span style={badgeStyle}>{task.priority}</span>
+          {overdue && task.status !== "Hotovo" && (
+            <span
+              style={{
+                ...badgeStyle,
+                background: "#ffe5e5",
+                color: "#900",
+              }}
+            >
+              Po termínu
+            </span>
+          )}
         </div>
 
         <div style={cardTitleStyle}>{task.text}</div>
