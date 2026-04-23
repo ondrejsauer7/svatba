@@ -1,5 +1,5 @@
 export type Person = "Ondra" | "Kája" | "Oba";
-export type SectionKey = "dashboard" | "tasks" | "budget" | "guests";
+export type SectionKey = "dashboard" | "tasks" | "budget" | "guests" | "notes";
 
 export type TaskStatus = "To do" | "Rozdělané" | "Čeká" | "Hotovo";
 export type TaskPriority = "Nízká" | "Střední" | "Vysoká";
@@ -64,6 +64,13 @@ export type Guest = {
   accommodation: boolean;
   child: boolean;
   updated_by: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+export type Note = {
+  id: string;
+  text: string;
+  author: Person;
   created_at?: string;
   updated_at?: string;
 };
