@@ -4,6 +4,7 @@ import type {
   BudgetItem,
   Guest,
   GuestSide,
+  Note,
   PaymentStatus,
   Person,
   RsvpStatus,
@@ -31,11 +32,13 @@ import {
   statusStyle,
   titleStyle,
   topBarStyle,
+  toastStyle,
 } from "./ui";
 import DashboardSection from "./sections/DashboardSection";
 import TasksSection from "./sections/TasksSection";
 import BudgetSection from "./sections/BudgetSection";
 import GuestsSection from "./sections/GuestsSection";
+import NotesSection from "./sections/NotesSection";
 
 const people: Person[] = ["Ondra", "Kája", "Oba"];
 const taskStatuses: TaskStatus[] = ["To do", "Rozdělané", "Čeká", "Hotovo"];
@@ -60,6 +63,7 @@ type BackupFile = {
   tasks: Task[];
   budgetItems: BudgetItem[];
   guests: Guest[];
+  notes: Note[];
   exportedAt: string;
 };
 
@@ -67,17 +71,20 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
   const [guests, setGuests] = useState<Guest[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
 
   const [sectionsOpen, setSectionsOpen] = useState<Record<SectionKey, boolean>>({
     dashboard: true,
     tasks: true,
     budget: true,
     guests: true,
+    notes: true,
   });
 
   const [taskInput, setTaskInput] = useState("");
@@ -114,6 +121,10 @@ export default function App() {
   const [guestUpdatedBy, setGuestUpdatedBy] = useState<Person>("Oba");
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
 
+  const [noteInput, setNoteInput] = useState("");
+  const [noteAuthor, setNoteAuthor] = useState<Person>("Oba");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+
   const [taskOwnerFilter, setTaskOwnerFilter] = useState<Person | "Vše">("Vše");
   const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | "Vše">("Vše");
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<TaskPriority | "Vše">("Vše");
@@ -139,20 +150,29 @@ export default function App() {
     useState<RsvpStatus | "Vše">("Vše");
   const [guestSearch, setGuestSearch] = useState("");
 
+  function showToast(message: string) {
+    setToast(message);
+    window.setTimeout(() => {
+      setToast("");
+    }, 2200);
+  }
+
   async function loadAll() {
     try {
       setLoading(true);
       setError("");
 
-      const [tasksData, budgetData, guestsData] = await Promise.all([
+      const [tasksData, budgetData, guestsData, notesData] = await Promise.all([
         supabaseRequest("tasks?select=*"),
         supabaseRequest("budget?select=*"),
         supabaseRequest("guests?select=*"),
+        supabaseRequest("notes?select=*"),
       ]);
 
       setTasks((tasksData || []) as Task[]);
       setBudgetItems((budgetData || []) as BudgetItem[]);
       setGuests((guestsData || []) as Guest[]);
+      setNotes((notesData || []) as Note[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při načítání");
     } finally {
@@ -207,11 +227,18 @@ export default function App() {
     setEditingGuestId(null);
   }
 
+  function resetNoteForm() {
+    setNoteInput("");
+    setNoteAuthor("Oba");
+    setEditingNoteId(null);
+  }
+
   function exportData() {
     const data: BackupFile = {
       tasks,
       budgetItems,
       guests,
+      notes,
       exportedAt: new Date().toISOString(),
     };
 
@@ -225,10 +252,11 @@ export default function App() {
     a.download = "svatba-backup.json";
     a.click();
     URL.revokeObjectURL(url);
+    showToast("Záloha exportována");
   }
 
   async function replaceTableData<T extends { id: string }>(
-    tableName: "tasks" | "budget" | "guests",
+    tableName: "tasks" | "budget" | "guests" | "notes",
     items: T[]
   ) {
     const existing = (await supabaseRequest(`${tableName}?select=id`)) as {
@@ -271,13 +299,15 @@ export default function App() {
         ? data.budgetItems
         : [];
       const importedGuests = Array.isArray(data.guests) ? data.guests : [];
+      const importedNotes = Array.isArray(data.notes) ? data.notes : [];
 
       await replaceTableData("tasks", importedTasks);
       await replaceTableData("budget", importedBudget);
       await replaceTableData("guests", importedGuests);
+      await replaceTableData("notes", importedNotes);
 
       await loadAll();
-      alert("Import hotový.");
+      showToast("Import hotový");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import selhal");
     } finally {
@@ -315,6 +345,7 @@ export default function App() {
 
         const row = updated?.[0] as Task;
         setTasks((prev) => prev.map((t) => (t.id === row.id ? row : t)));
+        showToast("Úkol upraven");
       } else {
         const inserted = await supabaseRequest("tasks", {
           method: "POST",
@@ -325,6 +356,7 @@ export default function App() {
 
         const row = inserted?.[0] as Task;
         setTasks((prev) => [row, ...prev]);
+        showToast("Úkol přidán");
       }
 
       resetTaskForm();
@@ -351,6 +383,7 @@ export default function App() {
 
       const row = updated?.[0] as Task;
       setTasks((prev) => prev.map((t) => (t.id === row.id ? row : t)));
+      showToast("Úkol změněn");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při změně úkolu");
     }
@@ -369,6 +402,7 @@ export default function App() {
 
       setTasks((prev) => prev.filter((t) => t.id !== id));
       if (editingTaskId === id) resetTaskForm();
+      showToast("Úkol smazán");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při mazání úkolu");
     }
@@ -431,6 +465,7 @@ export default function App() {
         setBudgetItems((prev) =>
           prev.map((item) => (item.id === row.id ? row : item))
         );
+        showToast("Rozpočet upraven");
       } else {
         const inserted = await supabaseRequest("budget", {
           method: "POST",
@@ -441,6 +476,7 @@ export default function App() {
 
         const row = inserted?.[0] as BudgetItem;
         setBudgetItems((prev) => [row, ...prev]);
+        showToast("Položka rozpočtu přidána");
       }
 
       resetBudgetForm();
@@ -466,6 +502,7 @@ export default function App() {
 
       setBudgetItems((prev) => prev.filter((item) => item.id !== id));
       if (editingBudgetId === id) resetBudgetForm();
+      showToast("Položka rozpočtu smazána");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Chyba při mazání rozpočtu"
@@ -504,6 +541,7 @@ export default function App() {
 
       const row = updated?.[0] as BudgetItem;
       setBudgetItems((prev) => prev.map((b) => (b.id === row.id ? row : b)));
+      showToast("Platba změněna");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při změně platby");
     }
@@ -541,6 +579,7 @@ export default function App() {
 
         const row = updated?.[0] as Guest;
         setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
+        showToast("Host upraven");
       } else {
         const inserted = await supabaseRequest("guests", {
           method: "POST",
@@ -551,6 +590,7 @@ export default function App() {
 
         const row = inserted?.[0] as Guest;
         setGuests((prev) => [row, ...prev]);
+        showToast("Host přidán");
       }
 
       resetGuestForm();
@@ -577,6 +617,7 @@ export default function App() {
 
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
+      showToast("RSVP změněno");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při změně hosta");
     }
@@ -595,6 +636,7 @@ export default function App() {
 
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
+      showToast("Přespání změněno");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při změně přespání");
     }
@@ -613,6 +655,7 @@ export default function App() {
 
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
+      showToast("Dítě změněno");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při změně dítěte");
     }
@@ -631,6 +674,7 @@ export default function App() {
 
       setGuests((prev) => prev.filter((g) => g.id !== id));
       if (editingGuestId === id) resetGuestForm();
+      showToast("Host smazán");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při mazání hosta");
     }
@@ -647,6 +691,75 @@ export default function App() {
     setGuestUpdatedBy((guest.updated_by as Person) || "Oba");
     setEditingGuestId(guest.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function saveNote() {
+    if (!noteInput.trim()) return;
+
+    const payload = {
+      text: noteInput.trim(),
+      author: noteAuthor,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      setSaving(true);
+      setError("");
+
+      if (editingNoteId) {
+        const updated = await supabaseRequest(`notes?id=eq.${editingNoteId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+
+        const row = updated?.[0] as Note;
+        setNotes((prev) => prev.map((n) => (n.id === row.id ? row : n)));
+        showToast("Poznámka upravena");
+      } else {
+        const inserted = await supabaseRequest("notes", {
+          method: "POST",
+          body: JSON.stringify([
+            { ...payload, created_at: new Date().toISOString() },
+          ]),
+        });
+
+        const row = inserted?.[0] as Note;
+        setNotes((prev) => [row, ...prev]);
+        showToast("Poznámka přidána");
+      }
+
+      resetNoteForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při ukládání poznámky");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startEditNote(note: Note) {
+    setNoteInput(note.text);
+    setNoteAuthor(note.author || "Oba");
+    setEditingNoteId(note.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function deleteNote(id: string) {
+    try {
+      setError("");
+      const shouldDelete = window.confirm("Opravdu smazat poznámku?");
+      if (!shouldDelete) return;
+
+      await supabaseRequest(`notes?id=eq.${id}`, {
+        method: "DELETE",
+        headers: { Prefer: "return=minimal" },
+      });
+
+      setNotes((prev) => prev.filter((n) => n.id !== id));
+      if (editingNoteId === id) resetNoteForm();
+      showToast("Poznámka smazána");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chyba při mazání poznámky");
+    }
   }
 
   const filteredTasks = useMemo(() => {
@@ -739,6 +852,31 @@ export default function App() {
     };
   }, [tasks, budgetItems, guests]);
 
+  const nextTasks = useMemo(() => {
+    return [...tasks]
+      .filter((t) => t.deadline && t.status !== "Hotovo" && !t.done)
+      .sort((a, b) => (a.deadline || "").localeCompare(b.deadline || ""))
+      .slice(0, 3)
+      .map((t) => ({
+        id: t.id,
+        text: t.text,
+        deadline: t.deadline,
+      }));
+  }, [tasks]);
+
+  const nextBudgetItems = useMemo(() => {
+    return [...budgetItems]
+      .filter((b) => b.due_date && b.payment_status !== "Zaplaceno")
+      .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""))
+      .slice(0, 3)
+      .map((b) => ({
+        id: b.id,
+        name: b.name,
+        due_date: b.due_date,
+        payment_status: b.payment_status,
+      }));
+  }, [budgetItems]);
+
   if (loading) {
     return <div style={loadingStyle}>Načítám data ze Supabase…</div>;
   }
@@ -784,6 +922,7 @@ export default function App() {
       </div>
 
       {error && <div style={errorStyle}>{error}</div>}
+      {toast && <div style={toastStyle}>{toast}</div>}
 
       <DashboardSection
         isOpen={sectionsOpen.dashboard}
@@ -792,6 +931,8 @@ export default function App() {
         budgetStats={budgetStats}
         guestStats={guestStats}
         recentItems={recentItems}
+        nextTasks={nextTasks}
+        nextBudgetItems={nextBudgetItems}
       />
 
       <TasksSection
@@ -925,6 +1066,23 @@ export default function App() {
         deleteGuest={deleteGuest}
         quickToggleGuestAccommodation={quickToggleGuestAccommodation}
         quickToggleGuestChild={quickToggleGuestChild}
+      />
+
+      <NotesSection
+        isOpen={sectionsOpen.notes}
+        onToggle={() => toggleSection("notes")}
+        people={people}
+        noteInput={noteInput}
+        setNoteInput={setNoteInput}
+        noteAuthor={noteAuthor}
+        setNoteAuthor={setNoteAuthor}
+        editingNoteId={editingNoteId}
+        saveNote={saveNote}
+        resetNoteForm={resetNoteForm}
+        saving={saving}
+        notes={notes}
+        startEditNote={startEditNote}
+        deleteNote={deleteNote}
       />
     </div>
   );
