@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type {
   BudgetCategory,
   BudgetItem,
@@ -28,6 +28,7 @@ import {
   errorStyle,
   loadingStyle,
   primaryButtonStyle,
+  secondaryButtonStyle,
   statusStyle,
   titleStyle,
   topBarStyle,
@@ -56,10 +57,18 @@ const paymentStatuses: PaymentStatus[] = ["Nezaplaceno", "Záloha", "Zaplaceno"]
 const guestSides: GuestSide[] = ["Ondra", "Kája", "Společní"];
 const rsvpStatuses: RsvpStatus[] = ["Bez odpovědi", "Potvrzeno", "Odmítl"];
 
+type BackupFile = {
+  tasks: Task[];
+  budgetItems: BudgetItem[];
+  guests: Guest[];
+  exportedAt: string;
+};
+
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
@@ -109,78 +118,26 @@ export default function App() {
   const [taskOwnerFilter, setTaskOwnerFilter] = useState<Person | "Vše">("Vše");
   const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | "Vše">("Vše");
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<TaskPriority | "Vše">("Vše");
-  const [taskSort, setTaskSort] = useState<"deadline" | "owner" | "priority">("deadline");
+  const [taskSort, setTaskSort] = useState<"deadline" | "owner" | "priority">(
+    "deadline"
+  );
 
-  const [budgetCategoryFilter, setBudgetCategoryFilter] = useState<BudgetCategory | "Vše">("Vše");
-  const [budgetPaymentFilter, setBudgetPaymentFilter] = useState<PaymentStatus | "Vše">("Vše");
-  const [budgetOwnerFilter, setBudgetOwnerFilter] = useState<Person | "Vše">("Vše");
-  const [budgetSort, setBudgetSort] = useState<"due_date" | "category" | "remaining">("due_date");
+  const [budgetCategoryFilter, setBudgetCategoryFilter] =
+    useState<BudgetCategory | "Vše">("Vše");
+  const [budgetPaymentFilter, setBudgetPaymentFilter] =
+    useState<PaymentStatus | "Vše">("Vše");
+  const [budgetOwnerFilter, setBudgetOwnerFilter] =
+    useState<Person | "Vše">("Vše");
+  const [budgetSort, setBudgetSort] = useState<
+    "due_date" | "category" | "remaining"
+  >("due_date");
 
-  const [guestSideFilter, setGuestSideFilter] = useState<GuestSide | "Vše">("Vše");
-  const [guestRsvpFilter, setGuestRsvpFilter] = useState<RsvpStatus | "Vše">("Vše");
+  const [guestSideFilter, setGuestSideFilter] =
+    useState<GuestSide | "Vše">("Vše");
+  const [guestRsvpFilter, setGuestRsvpFilter] =
+    useState<RsvpStatus | "Vše">("Vše");
 
   async function loadAll() {
-    function exportData() {
-  const data = {
-    tasks,
-    budgetItems,
-    guests,
-    exportedAt: new Date().toISOString(),
-  };
-
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: "application/json",
-  });
-
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "svatba-backup.json";
-  a.click();
-
-  URL.revokeObjectURL(url);
-}
-    async function importData(event: React.ChangeEvent<HTMLInputElement>) {
-  const file = event.target.files?.[0];
-
-  if (!file) return;
-
-  const text = await file.text();
-  const data = JSON.parse(text);
-
-  try {
-    setSaving(true);
-
-    if (data.tasks?.length) {
-      await supabaseRequest("tasks", {
-        method: "POST",
-        body: JSON.stringify(data.tasks),
-      });
-    }
-
-    if (data.budgetItems?.length) {
-      await supabaseRequest("budget", {
-        method: "POST",
-        body: JSON.stringify(data.budgetItems),
-      });
-    }
-
-    if (data.guests?.length) {
-      await supabaseRequest("guests", {
-        method: "POST",
-        body: JSON.stringify(data.guests),
-      });
-    }
-
-    await loadAll();
-
-  } catch (err) {
-    setError("Import selhal");
-  } finally {
-    setSaving(false);
-  }
-}
     try {
       setLoading(true);
       setError("");
@@ -246,6 +203,84 @@ export default function App() {
     setGuestChild(false);
     setGuestUpdatedBy("Oba");
     setEditingGuestId(null);
+  }
+
+  function exportData() {
+    const data: BackupFile = {
+      tasks,
+      budgetItems,
+      guests,
+      exportedAt: new Date().toISOString(),
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "svatba-backup.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function replaceTableData<T extends { id: string }>(
+    tableName: "tasks" | "budget" | "guests",
+    items: T[]
+  ) {
+    const existing = (await supabaseRequest(`${tableName}?select=id`)) as {
+      id: string;
+    }[];
+
+    if (existing.length > 0) {
+      const ids = existing.map((x) => x.id);
+      for (const id of ids) {
+        await supabaseRequest(`${tableName}?id=eq.${id}`, {
+          method: "DELETE",
+          headers: { Prefer: "return=minimal" },
+        });
+      }
+    }
+
+    if (items.length > 0) {
+      await supabaseRequest(tableName, {
+        method: "POST",
+        body: JSON.stringify(items),
+      });
+    }
+  }
+
+  async function importData(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setSaving(true);
+      setError("");
+
+      const text = await file.text();
+      const data = JSON.parse(text) as Partial<BackupFile>;
+
+      const importedTasks = Array.isArray(data.tasks) ? data.tasks : [];
+      const importedBudget = Array.isArray(data.budgetItems)
+        ? data.budgetItems
+        : [];
+      const importedGuests = Array.isArray(data.guests) ? data.guests : [];
+
+      await replaceTableData("tasks", importedTasks);
+      await replaceTableData("budget", importedBudget);
+      await replaceTableData("guests", importedGuests);
+
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import selhal");
+    } finally {
+      setSaving(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   }
 
   async function saveTask() {
@@ -611,36 +646,40 @@ export default function App() {
       <h1 style={titleStyle}>💍 Svatba planner</h1>
 
       <div style={topBarStyle}>
+        <button
+          onClick={loadAll}
+          style={primaryButtonStyle}
+          disabled={loading || saving}
+        >
+          Obnovit data
+        </button>
 
-<button
-  onClick={loadAll}
-  style={primaryButtonStyle}
->
-  Obnovit data
-</button>
+        <button
+          onClick={exportData}
+          style={secondaryButtonStyle}
+          disabled={saving}
+        >
+          Export dat
+        </button>
 
-<button
-  onClick={exportData}
-  style={primaryButtonStyle}
->
-  Export dat
-</button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          style={secondaryButtonStyle}
+          disabled={saving}
+        >
+          Import dat
+        </button>
 
-<label style={primaryButtonStyle}>
-  Import dat
-  <input
-    type="file"
-    accept="application/json"
-    style={{ display: "none" }}
-    onChange={importData}
-  />
-</label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          style={{ display: "none" }}
+          onChange={importData}
+        />
 
-<span style={statusStyle}>
-  {saving ? "Ukládám…" : "Připraveno"}
-</span>
-
-</div>
+        <span style={statusStyle}>{saving ? "Ukládám…" : "Připraveno"}</span>
+      </div>
 
       {error && <div style={errorStyle}>{error}</div>}
 
