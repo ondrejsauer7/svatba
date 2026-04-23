@@ -192,7 +192,20 @@ export default function TasksSection(props: Props) {
           <div style={cardListStyle}>
             {filteredTasks.length === 0 && <div style={emptyStyle}>Žádné úkoly pro aktuální filtr.</div>}
             {filteredTasks.map((task) => (
-              <div key={task.id} style={cardStyle}>
+              <div
+  key={task.id}
+  style={{
+    ...cardStyle,
+    borderLeft:
+      task.status === "Hotovo"
+        ? "6px solid green"
+        : task.priority === "Vysoká"
+        ? "6px solid orange"
+        : task.deadline && new Date(task.deadline) < new Date()
+        ? "6px solid red"
+        : "6px solid transparent",
+  }}
+>
                 <div style={badgeRowStyle}>
                   <span style={badgeStyle}>{task.owner}</span>
                   <span style={badgeStyle}>{task.status}</span>
