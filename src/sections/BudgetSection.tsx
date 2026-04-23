@@ -27,6 +27,31 @@ import {
   checkboxLineStyle,
 } from "../ui";
 
+function isBudgetOverdue(item: BudgetItem) {
+  if (!item.due_date || item.payment_status === "Zaplaceno") return false;
+
+  const today = new Date();
+  const target = new Date(item.due_date);
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+
+  return target.getTime() < today.getTime();
+}
+
+function isBudgetDueSoon(item: BudgetItem) {
+  if (!item.due_date || item.payment_status === "Zaplaceno") return false;
+
+  const today = new Date();
+  const target = new Date(item.due_date);
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+
+  const diffMs = target.getTime() - today.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  return diffDays >= 0 && diffDays <= 7;
+}
+
 type Props = {
   isOpen: boolean;
   onToggle: () => void;
@@ -76,9 +101,12 @@ type Props = {
   setBudgetOwnerFilter: (v: Person | "Vše") => void;
   budgetSort: "due_date" | "category" | "remaining";
   setBudgetSort: (v: "due_date" | "category" | "remaining") => void;
+  budgetSearch: string;
+  setBudgetSearch: (v: string) => void;
   filteredBudget: BudgetItem[];
   startEditBudgetItem: (item: BudgetItem) => void;
   deleteBudgetItem: (id: string) => void;
+  quickToggleBudgetPaid: (item: BudgetItem) => void;
 };
 
 export default function BudgetSection(props: Props) {
@@ -125,9 +153,12 @@ export default function BudgetSection(props: Props) {
     setBudgetOwnerFilter,
     budgetSort,
     setBudgetSort,
+    budgetSearch,
+    setBudgetSearch,
     filteredBudget,
     startEditBudgetItem,
     deleteBudgetItem,
+    quickToggleBudgetPaid,
   } = props;
 
   return (
@@ -247,6 +278,13 @@ export default function BudgetSection(props: Props) {
           <div style={filterCardStyle}>
             <div style={filterTitleStyle}>Filtry a řazení</div>
 
+            <input
+              value={budgetSearch}
+              onChange={(e) => setBudgetSearch(e.target.value)}
+              placeholder="Hledat v rozpočtu, dodavateli a poznámkách"
+              style={inputStyle}
+            />
+
             <div style={chipsWrapStyle}>
               <span style={filterLabelStyle}>Kategorie:</span>
               <button style={chipStyle(budgetCategoryFilter === "Vše")} onClick={() => setBudgetCategoryFilter("Vše")}>
@@ -311,38 +349,74 @@ export default function BudgetSection(props: Props) {
               <div style={emptyStyle}>Žádné položky rozpočtu pro aktuální filtr.</div>
             )}
 
-            {filteredBudget.map((item) => (
-              <div key={item.id} style={cardStyle}>
-                <div style={badgeRowStyle}>
-                  <span style={badgeStyle}>{item.category}</span>
-                  <span style={badgeStyle}>{item.owner || "Oba"}</span>
-                  <span style={badgeStyle}>{item.payment_status || "Nezaplaceno"}</span>
-                </div>
+            {filteredBudget.map((item) => {
+              const overdue = isBudgetOverdue(item);
+              const dueSoon = isBudgetDueSoon(item);
 
-                <div style={cardTitleStyle}>{item.name}</div>
+              return (
+                <div
+                  key={item.id}
+                  style={{
+                    ...cardStyle,
+                    borderLeft:
+                      item.payment_status === "Zaplaceno"
+                        ? "6px solid green"
+                        : overdue
+                        ? "6px solid red"
+                        : dueSoon
+                        ? "6px solid orange"
+                        : "6px solid transparent",
+                  }}
+                >
+                  <div style={badgeRowStyle}>
+                    <span style={badgeStyle}>{item.category}</span>
+                    <span style={badgeStyle}>{item.owner || "Oba"}</span>
+                    <span style={badgeStyle}>{item.payment_status || "Nezaplaceno"}</span>
+                    {overdue && (
+                      <span style={{ ...badgeStyle, background: "#ffe5e5", color: "#900" }}>
+                        Po splatnosti
+                      </span>
+                    )}
+                    {!overdue && dueSoon && (
+                      <span style={{ ...badgeStyle, background: "#fff2e5", color: "#8a4b00" }}>
+                        Do 7 dnů
+                      </span>
+                    )}
+                    {item.payment_status === "Zaplaceno" && (
+                      <span style={{ ...badgeStyle, background: "#e8f7e8", color: "#146314" }}>
+                        Zaplaceno
+                      </span>
+                    )}
+                  </div>
 
-                <div style={metaGridStyle}>
-                  <div>Dodavatel: <strong>{item.vendor || "-"}</strong></div>
-                  <div>Splatnost: <strong>{formatDate(item.due_date)}</strong></div>
-                  <div>Plán: <strong>{item.planned} Kč</strong></div>
-                  <div>Skutečnost: <strong>{item.actual} Kč</strong></div>
-                  <div>Záloha: <strong>{item.deposit} Kč</strong></div>
-                  <div>Zbývá: <strong>{getRemaining(item)} Kč</strong></div>
-                  <div>Komentář: <strong>{item.note || "-"}</strong></div>
-                  <div>Poslední update: <strong>{item.updated_by || "-"}</strong></div>
-                  <div>Upraveno: <strong>{formatDate(item.updated_at)}</strong></div>
-                </div>
+                  <div style={cardTitleStyle}>{item.name}</div>
 
-                <div style={buttonRowStyle}>
-                  <button onClick={() => startEditBudgetItem(item)} style={secondaryButtonStyle}>
-                    Upravit
-                  </button>
-                  <button onClick={() => deleteBudgetItem(item.id)} style={dangerButtonStyle}>
-                    Smazat
-                  </button>
+                  <div style={metaGridStyle}>
+                    <div>Dodavatel: <strong>{item.vendor || "-"}</strong></div>
+                    <div>Splatnost: <strong>{formatDate(item.due_date)}</strong></div>
+                    <div>Plán: <strong>{item.planned} Kč</strong></div>
+                    <div>Skutečnost: <strong>{item.actual} Kč</strong></div>
+                    <div>Záloha: <strong>{item.deposit} Kč</strong></div>
+                    <div>Zbývá: <strong>{getRemaining(item)} Kč</strong></div>
+                    <div>Komentář: <strong>{item.note || "-"}</strong></div>
+                    <div>Poslední update: <strong>{item.updated_by || "-"}</strong></div>
+                    <div>Upraveno: <strong>{formatDate(item.updated_at)}</strong></div>
+                  </div>
+
+                  <div style={buttonRowStyle}>
+                    <button onClick={() => quickToggleBudgetPaid(item)} style={secondaryButtonStyle}>
+                      {item.payment_status === "Zaplaceno" ? "Označit nezaplaceno" : "Označit zaplaceno"}
+                    </button>
+                    <button onClick={() => startEditBudgetItem(item)} style={secondaryButtonStyle}>
+                      Upravit
+                    </button>
+                    <button onClick={() => deleteBudgetItem(item.id)} style={dangerButtonStyle}>
+                      Smazat
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
