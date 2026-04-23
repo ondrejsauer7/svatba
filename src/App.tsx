@@ -67,6 +67,38 @@ type BackupFile = {
   exportedAt: string;
 };
 
+function hasStringId(value: unknown): value is { id: string } {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      typeof (value as { id?: unknown }).id === "string"
+  );
+}
+
+function safeArrayWithId<T extends { id: string }>(value: unknown): T[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(hasStringId) as T[];
+}
+
+function getRecordTime(item: { updated_at?: string; created_at?: string }) {
+  const source = item.updated_at || item.created_at;
+  if (!source) return 0;
+  const timestamp = Date.parse(source);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getLatestItem<T extends { updated_at?: string; created_at?: string }>(
+  items: T[]
+) {
+  let latest: T | undefined;
+  for (const item of items) {
+    if (!latest || getRecordTime(item) > getRecordTime(latest)) {
+      latest = item;
+    }
+  }
+  return latest;
+}
+
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -163,10 +195,18 @@ export default function App() {
       setError("");
 
       const [tasksData, budgetData, guestsData, notesData] = await Promise.all([
-        supabaseRequest("tasks?select=*"),
-        supabaseRequest("budget?select=*"),
-        supabaseRequest("guests?select=*"),
-        supabaseRequest("notes?select=*"),
+        supabaseRequest(
+          "tasks?select=*&order=updated_at.desc.nullslast,created_at.desc.nullslast"
+        ),
+        supabaseRequest(
+          "budget?select=*&order=updated_at.desc.nullslast,created_at.desc.nullslast"
+        ),
+        supabaseRequest(
+          "guests?select=*&order=updated_at.desc.nullslast,created_at.desc.nullslast"
+        ),
+        supabaseRequest(
+          "notes?select=*&order=updated_at.desc.nullslast,created_at.desc.nullslast"
+        ),
       ]);
 
       setTasks((tasksData || []) as Task[]);
@@ -259,16 +299,10 @@ export default function App() {
     tableName: "tasks" | "budget" | "guests" | "notes",
     items: T[]
   ) {
-    const existing = (await supabaseRequest(`${tableName}?select=id`)) as {
-      id: string;
-    }[];
-
-    for (const row of existing) {
-      await supabaseRequest(`${tableName}?id=eq.${row.id}`, {
-        method: "DELETE",
-        headers: { Prefer: "return=minimal" },
-      });
-    }
+    await supabaseRequest(`${tableName}?id=not.is.null`, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" },
+    });
 
     if (items.length > 0) {
       await supabaseRequest(tableName, {
@@ -294,17 +328,48 @@ export default function App() {
       const text = await file.text();
       const data = JSON.parse(text) as Partial<BackupFile>;
 
-      const importedTasks = Array.isArray(data.tasks) ? data.tasks : [];
-      const importedBudget = Array.isArray(data.budgetItems)
-        ? data.budgetItems
-        : [];
-      const importedGuests = Array.isArray(data.guests) ? data.guests : [];
-      const importedNotes = Array.isArray(data.notes) ? data.notes : [];
+      const importedTasks = safeArrayWithId<Task>(data.tasks);
+      const importedBudget = safeArrayWithId<BudgetItem>(data.budgetItems);
+      const importedGuests = safeArrayWithId<Guest>(data.guests);
+      const importedNotes = safeArrayWithId<Note>(data.notes);
 
-      await replaceTableData("tasks", importedTasks);
-      await replaceTableData("budget", importedBudget);
-      await replaceTableData("guests", importedGuests);
-      await replaceTableData("notes", importedNotes);
+      const [previousTasks, previousBudget, previousGuests, previousNotes] =
+        await Promise.all([
+          supabaseRequest("tasks?select=*"),
+          supabaseRequest("budget?select=*"),
+          supabaseRequest("guests?select=*"),
+          supabaseRequest("notes?select=*"),
+        ]);
+
+      try {
+        await replaceTableData("tasks", importedTasks);
+        await replaceTableData("budget", importedBudget);
+        await replaceTableData("guests", importedGuests);
+        await replaceTableData("notes", importedNotes);
+      } catch (importError) {
+        try {
+          await replaceTableData("tasks", ((previousTasks || []) as Task[]));
+          await replaceTableData(
+            "budget",
+            ((previousBudget || []) as BudgetItem[])
+          );
+          await replaceTableData("guests", ((previousGuests || []) as Guest[]));
+          await replaceTableData("notes", ((previousNotes || []) as Note[]));
+          await loadAll();
+        } catch {
+          const message =
+            importError instanceof Error ? importError.message : "Import selhal";
+          setError(
+            `${message}. Pozor: puvodni data se nepodarilo plne obnovit.`
+          );
+          return;
+        }
+
+        const message =
+          importError instanceof Error ? importError.message : "Import selhal";
+        setError(`${message}. Puvodni data byla obnovena.`);
+        return;
+      }
 
       await loadAll();
       showToast("Import hotový");
@@ -530,11 +595,16 @@ export default function App() {
   async function quickToggleBudgetPaid(item: BudgetItem) {
     try {
       setError("");
+      const nextFullyPaid = !item.fully_paid;
       const updated = await supabaseRequest(`budget?id=eq.${item.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          fully_paid: !item.fully_paid,
-          payment_status: !item.fully_paid ? "Zaplaceno" : "Nezaplaceno",
+          fully_paid: nextFullyPaid,
+          payment_status: normalizePaymentStatus(
+            nextFullyPaid,
+            Number(item.deposit) || 0,
+            "Nezaplaceno"
+          ),
           updated_at: new Date().toISOString(),
         }),
       });
@@ -845,10 +915,14 @@ export default function App() {
   const guestStats = useMemo(() => getGuestStats(guests), [guests]);
 
   const recentItems = useMemo(() => {
+    const latestTask = getLatestItem(tasks);
+    const latestBudgetItem = getLatestItem(budgetItems);
+    const latestGuest = getLatestItem(guests);
+
     return {
-      task: tasks[0]?.text || "-",
-      budget: budgetItems[0]?.name || "-",
-      guest: guests[0]?.name || "-",
+      task: latestTask?.text || "-",
+      budget: latestBudgetItem?.name || "-",
+      guest: latestGuest?.name || "-",
     };
   }, [tasks, budgetItems, guests]);
 

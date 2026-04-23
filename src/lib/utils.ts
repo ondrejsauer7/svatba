@@ -111,11 +111,15 @@ export function getBudgetStats(items: BudgetItem[]) {
   const totalDeposit = items.reduce((s, i) => s + i.deposit, 0);
   const totalRemaining = items.reduce((s, i) => s + getRemaining(i), 0);
   const totalPaid = totalActual - totalRemaining;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const overdue = items.filter(
-    (i) =>
-      i.due_date &&
-      new Date(i.due_date).getTime() < Date.now() &&
-      i.payment_status !== "Zaplaceno"
+    (i) => {
+      if (!i.due_date || i.payment_status === "Zaplaceno") return false;
+      const dueDate = new Date(i.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate.getTime() < today.getTime();
+    }
   ).length;
 
   return {
