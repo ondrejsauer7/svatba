@@ -1,4 +1,5 @@
 import React from "react";
+import { formatDate } from "../lib/utils";
 import {
   cardListStyle,
   cardStyle,
@@ -7,6 +8,19 @@ import {
   sectionStyle,
   sectionToggleStyle,
 } from "../ui";
+
+type DashboardTask = {
+  id: string;
+  text: string;
+  deadline: string | null;
+};
+
+type DashboardBudget = {
+  id: string;
+  name: string;
+  due_date: string | null;
+  payment_status: string;
+};
 
 type Props = {
   isOpen: boolean;
@@ -35,6 +49,8 @@ type Props = {
     budget: string;
     guest: string;
   };
+  nextTasks: DashboardTask[];
+  nextBudgetItems: DashboardBudget[];
 };
 
 export default function DashboardSection({
@@ -44,6 +60,8 @@ export default function DashboardSection({
   budgetStats,
   guestStats,
   recentItems,
+  nextTasks,
+  nextBudgetItems,
 }: Props) {
   return (
     <section style={sectionStyle}>
@@ -89,6 +107,30 @@ export default function DashboardSection({
               <div>Potvrzeno: <strong>{guestStats.confirmed}</strong></div>
               <div>Přespání: <strong>{guestStats.sleeping}</strong></div>
               <div>Děti: <strong>{guestStats.children}</strong></div>
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={cardTitleStyle}>Nejbližší úkoly</div>
+            <div style={metaGridStyle}>
+              {nextTasks.length === 0 && <div>Žádné úkoly s termínem.</div>}
+              {nextTasks.map((task) => (
+                <div key={task.id}>
+                  {task.text} — <strong>{formatDate(task.deadline)}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={cardTitleStyle}>Nejbližší platby</div>
+            <div style={metaGridStyle}>
+              {nextBudgetItems.length === 0 && <div>Žádné platby s termínem.</div>}
+              {nextBudgetItems.map((item) => (
+                <div key={item.id}>
+                  {item.name} — <strong>{formatDate(item.due_date)}</strong>
+                </div>
+              ))}
             </div>
           </div>
 
