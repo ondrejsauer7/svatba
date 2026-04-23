@@ -120,6 +120,67 @@ export default function App() {
   const [guestRsvpFilter, setGuestRsvpFilter] = useState<RsvpStatus | "Vše">("Vše");
 
   async function loadAll() {
+    function exportData() {
+  const data = {
+    tasks,
+    budgetItems,
+    guests,
+    exportedAt: new Date().toISOString(),
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "svatba-backup.json";
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+    async function importData(event: React.ChangeEvent<HTMLInputElement>) {
+  const file = event.target.files?.[0];
+
+  if (!file) return;
+
+  const text = await file.text();
+  const data = JSON.parse(text);
+
+  try {
+    setSaving(true);
+
+    if (data.tasks?.length) {
+      await supabaseRequest("tasks", {
+        method: "POST",
+        body: JSON.stringify(data.tasks),
+      });
+    }
+
+    if (data.budgetItems?.length) {
+      await supabaseRequest("budget", {
+        method: "POST",
+        body: JSON.stringify(data.budgetItems),
+      });
+    }
+
+    if (data.guests?.length) {
+      await supabaseRequest("guests", {
+        method: "POST",
+        body: JSON.stringify(data.guests),
+      });
+    }
+
+    await loadAll();
+
+  } catch (err) {
+    setError("Import selhal");
+  } finally {
+    setSaving(false);
+  }
+}
     try {
       setLoading(true);
       setError("");
@@ -550,15 +611,36 @@ export default function App() {
       <h1 style={titleStyle}>💍 Svatba planner</h1>
 
       <div style={topBarStyle}>
-        <button
-          onClick={loadAll}
-          style={primaryButtonStyle}
-          disabled={loading || saving}
-        >
-          Obnovit data
-        </button>
-        <span style={statusStyle}>{saving ? "Ukládám…" : "Připraveno"}</span>
-      </div>
+
+<button
+  onClick={loadAll}
+  style={primaryButtonStyle}
+>
+  Obnovit data
+</button>
+
+<button
+  onClick={exportData}
+  style={primaryButtonStyle}
+>
+  Export dat
+</button>
+
+<label style={primaryButtonStyle}>
+  Import dat
+  <input
+    type="file"
+    accept="application/json"
+    style={{ display: "none" }}
+    onChange={importData}
+  />
+</label>
+
+<span style={statusStyle}>
+  {saving ? "Ukládám…" : "Připraveno"}
+</span>
+
+</div>
 
       {error && <div style={errorStyle}>{error}</div>}
 
