@@ -81,6 +81,7 @@ type Props = {
   taskNote: string;
   setTaskNote: (v: string) => void;
   editingTaskId: string | null;
+  lastSavedAt: number | null;
   saveTask: () => void;
   resetTaskForm: () => void;
   saving: boolean;
@@ -123,6 +124,7 @@ export default function TasksSection(props: Props) {
     taskNote,
     setTaskNote,
     editingTaskId,
+    lastSavedAt,
     saveTask,
     resetTaskForm,
     saving,
@@ -143,6 +145,7 @@ export default function TasksSection(props: Props) {
   } = props;
 
   const [showCompleted, setShowCompleted] = React.useState(false);
+  const [showSaved, setShowSaved] = React.useState(false);
   const editFormRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -163,6 +166,13 @@ export default function TasksSection(props: Props) {
       window.clearTimeout(timeoutId);
     };
   }, [editingTaskId, isOpen]);
+
+  React.useEffect(() => {
+    if (!lastSavedAt) return;
+    setShowSaved(true);
+    const timeoutId = window.setTimeout(() => setShowSaved(false), 1800);
+    return () => window.clearTimeout(timeoutId);
+  }, [lastSavedAt]);
 
   const canSaveTask = taskInput.trim().length > 0;
 
@@ -305,14 +315,14 @@ export default function TasksSection(props: Props) {
                   fontWeight: 700,
                 }}
               >
-                Editacni rezim: upravujes existujici ukol.
+                Editační režim: upravuješ existující úkol.
               </div>
             )}
             <input
               value={taskInput}
               onChange={(e) => setTaskInput(e.target.value)}
               onKeyDown={handleTaskInputKeyDown}
-              aria-label="Nazev ukolu"
+              aria-label="Název úkolu"
               placeholder="Např. zamluvit místo"
               style={inputStyle}
             />
@@ -320,7 +330,7 @@ export default function TasksSection(props: Props) {
             <select
               value={taskOwner}
               onChange={(e) => setTaskOwner(e.target.value as Person)}
-              aria-label="Vlastnik ukolu"
+              aria-label="Vlastník úkolu"
               style={inputStyle}
             >
               {people.map((person) => (
@@ -333,7 +343,7 @@ export default function TasksSection(props: Props) {
             <select
               value={taskStatus}
               onChange={(e) => setTaskStatus(e.target.value as TaskStatus)}
-              aria-label="Stav ukolu"
+              aria-label="Stav úkolu"
               style={inputStyle}
             >
               {taskStatuses.map((status) => (
@@ -346,7 +356,7 @@ export default function TasksSection(props: Props) {
             <select
               value={taskPriority}
               onChange={(e) => setTaskPriority(e.target.value as TaskPriority)}
-              aria-label="Priorita ukolu"
+              aria-label="Priorita úkolu"
               style={inputStyle}
             >
               {taskPriorities.map((priority) => (
@@ -359,7 +369,7 @@ export default function TasksSection(props: Props) {
             <select
               value={taskUpdatedBy}
               onChange={(e) => setTaskUpdatedBy(e.target.value as Person)}
-              aria-label="Kdo upravoval ukol"
+              aria-label="Kdo upravoval úkol"
               style={inputStyle}
             >
               {people.map((person) => (
@@ -373,14 +383,14 @@ export default function TasksSection(props: Props) {
               type="date"
               value={taskDeadline}
               onChange={(e) => setTaskDeadline(e.target.value)}
-              aria-label="Deadline ukolu"
+              aria-label="Deadline úkolu"
               style={inputStyle}
             />
 
             <input
               value={taskNote}
               onChange={(e) => setTaskNote(e.target.value)}
-              aria-label="Poznamka k ukolu"
+              aria-label="Poznámka k úkolu"
               placeholder="Komentář / poznámka"
               style={inputStyle}
             />
@@ -392,10 +402,10 @@ export default function TasksSection(props: Props) {
                 disabled={saving || !canSaveTask}
               >
                 {saving
-                  ? "Ukladam..."
+                  ? "Ukládám..."
                   : editingTaskId
-                  ? "Ulozit zmeny"
-                  : "Pridat ukol"}
+                  ? "Uložit změny"
+                  : "Přidat úkol"}
               </button>
 
               {editingTaskId && (
@@ -408,6 +418,11 @@ export default function TasksSection(props: Props) {
                 </button>
               )}
             </div>
+            {showSaved && (
+              <div style={{ color: "#166534", fontWeight: 700, fontSize: 13 }}>
+                Uloženo
+              </div>
+            )}
           </div>
 
           <div style={filterCardStyle}>
@@ -416,7 +431,7 @@ export default function TasksSection(props: Props) {
             <input
               value={taskSearch}
               onChange={(e) => setTaskSearch(e.target.value)}
-              aria-label="Hledat ukoly"
+              aria-label="Hledat úkoly"
               placeholder="Hledat v úkolech a poznámkách"
               style={inputStyle}
             />
@@ -490,7 +505,7 @@ export default function TasksSection(props: Props) {
               onChange={(e) =>
                 setTaskSort(e.target.value as "deadline" | "owner" | "priority")
               }
-              aria-label="Razeni ukolu"
+              aria-label="Řazení úkolů"
               style={inputStyle}
             >
               <option value="deadline">Řadit podle deadline</option>

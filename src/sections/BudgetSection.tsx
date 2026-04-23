@@ -89,6 +89,7 @@ type Props = {
   budgetNote: string;
   setBudgetNote: (v: string) => void;
   editingBudgetId: string | null;
+  lastSavedAt: number | null;
   saveBudgetItem: () => void;
   resetBudgetForm: () => void;
   saving: boolean;
@@ -141,6 +142,7 @@ export default function BudgetSection(props: Props) {
     budgetNote,
     setBudgetNote,
     editingBudgetId,
+    lastSavedAt,
     saveBudgetItem,
     resetBudgetForm,
     saving,
@@ -190,6 +192,7 @@ export default function BudgetSection(props: Props) {
     budgetStats.totalActual > 0
       ? Math.round((budgetStats.totalPaid / budgetStats.totalActual) * 100)
       : 0;
+  const [showSaved, setShowSaved] = React.useState(false);
   const editFormRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -210,6 +213,13 @@ export default function BudgetSection(props: Props) {
       window.clearTimeout(timeoutId);
     };
   }, [editingBudgetId, isOpen]);
+
+  React.useEffect(() => {
+    if (!lastSavedAt) return;
+    setShowSaved(true);
+    const timeoutId = window.setTimeout(() => setShowSaved(false), 1800);
+    return () => window.clearTimeout(timeoutId);
+  }, [lastSavedAt]);
 
   const canSaveBudget = budgetName.trim().length > 0;
 
@@ -356,10 +366,10 @@ export default function BudgetSection(props: Props) {
                   fontWeight: 700,
                 }}
               >
-                Editacni rezim: upravujes existujici polozku rozpoctu.
+                Editační režim: upravuješ existující položku rozpočtu.
               </div>
             )}
-            <select value={category} onChange={(e) => setCategory(e.target.value as BudgetCategory)} aria-label="Kategorie rozpoctu" style={inputStyle}>
+            <select value={category} onChange={(e) => setCategory(e.target.value as BudgetCategory)} aria-label="Kategorie rozpočtu" style={inputStyle}>
               {categories.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
@@ -369,12 +379,12 @@ export default function BudgetSection(props: Props) {
               value={budgetName}
               onChange={(e) => setBudgetName(e.target.value)}
               onKeyDown={handleBudgetNameKeyDown}
-              aria-label="Nazev polozky rozpoctu"
+              aria-label="Název položky rozpočtu"
               placeholder="Položka"
               style={inputStyle}
             />
 
-            <select value={budgetOwner} onChange={(e) => setBudgetOwner(e.target.value as Person)} aria-label="Kdo resi polozku rozpoctu" style={inputStyle}>
+            <select value={budgetOwner} onChange={(e) => setBudgetOwner(e.target.value as Person)} aria-label="Kdo řeší položku rozpočtu" style={inputStyle}>
               {people.map((person) => (
                 <option key={person} value={person}>Řeší: {person}</option>
               ))}
@@ -409,7 +419,7 @@ export default function BudgetSection(props: Props) {
               inputMode="numeric"
               value={planned}
               onChange={(e) => setPlanned(e.target.value)}
-              aria-label="Planovana cena"
+              aria-label="Plánovaná cena"
               placeholder="Plánovaná cena"
               style={inputStyle}
             />
@@ -421,7 +431,7 @@ export default function BudgetSection(props: Props) {
               inputMode="numeric"
               value={actual}
               onChange={(e) => setActual(e.target.value)}
-              aria-label="Skutecna cena"
+              aria-label="Skutečná cena"
               placeholder="Skutečná cena"
               style={inputStyle}
             />
@@ -433,7 +443,7 @@ export default function BudgetSection(props: Props) {
               inputMode="numeric"
               value={deposit}
               onChange={(e) => setDeposit(e.target.value)}
-              aria-label="Zaloha"
+              aria-label="Záloha"
               placeholder="Záloha"
               style={inputStyle}
             />
@@ -448,7 +458,7 @@ export default function BudgetSection(props: Props) {
               Zaplaceno celé
             </label>
 
-            <select value={budgetUpdatedBy} onChange={(e) => setBudgetUpdatedBy(e.target.value as Person)} aria-label="Kdo upravoval rozpocet" style={inputStyle}>
+            <select value={budgetUpdatedBy} onChange={(e) => setBudgetUpdatedBy(e.target.value as Person)} aria-label="Kdo upravoval rozpočet" style={inputStyle}>
               {people.map((person) => (
                 <option key={person} value={person}>Update dělal: {person}</option>
               ))}
@@ -457,7 +467,7 @@ export default function BudgetSection(props: Props) {
             <input
               value={budgetNote}
               onChange={(e) => setBudgetNote(e.target.value)}
-              aria-label="Poznamka k polozce rozpoctu"
+              aria-label="Poznámka k položce rozpočtu"
               placeholder="Komentář / poznámka"
               style={inputStyle}
             />
@@ -469,10 +479,10 @@ export default function BudgetSection(props: Props) {
                 disabled={saving || !canSaveBudget}
               >
                 {saving
-                  ? "Ukladam..."
+                  ? "Ukládám..."
                   : editingBudgetId
-                  ? "Ulozit zmeny"
-                  : "Pridat polozku"}
+                  ? "Uložit změny"
+                  : "Přidat položku"}
               </button>
               {editingBudgetId && (
                 <button
@@ -484,6 +494,11 @@ export default function BudgetSection(props: Props) {
                 </button>
               )}
             </div>
+            {showSaved && (
+              <div style={{ color: "#166534", fontWeight: 700, fontSize: 13 }}>
+                Uloženo
+              </div>
+            )}
           </div>
 
           <div style={filterCardStyle}>
@@ -492,7 +507,7 @@ export default function BudgetSection(props: Props) {
             <input
               value={budgetSearch}
               onChange={(e) => setBudgetSearch(e.target.value)}
-              aria-label="Hledat v rozpoctu"
+              aria-label="Hledat v rozpočtu"
               placeholder="Hledat v rozpočtu, dodavateli a poznámkách"
               style={inputStyle}
             />
@@ -548,7 +563,7 @@ export default function BudgetSection(props: Props) {
             <select
               value={budgetSort}
               onChange={(e) => setBudgetSort(e.target.value as "due_date" | "category" | "remaining")}
-              aria-label="Razeni polozek rozpoctu"
+              aria-label="Řazení položek rozpočtu"
               style={inputStyle}
             >
               <option value="due_date">Řadit podle splatnosti</option>

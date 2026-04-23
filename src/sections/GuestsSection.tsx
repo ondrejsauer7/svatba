@@ -58,6 +58,7 @@ type Props = {
   guestNote: string;
   setGuestNote: (v: string) => void;
   editingGuestId: string | null;
+  lastSavedAt: number | null;
   saveGuest: () => void;
   resetGuestForm: () => void;
   saving: boolean;
@@ -100,6 +101,7 @@ export default function GuestsSection(props: Props) {
     guestNote,
     setGuestNote,
     editingGuestId,
+    lastSavedAt,
     saveGuest,
     resetGuestForm,
     saving,
@@ -116,6 +118,7 @@ export default function GuestsSection(props: Props) {
     quickToggleGuestAccommodation,
     quickToggleGuestChild,
   } = props;
+  const [showSaved, setShowSaved] = React.useState(false);
   const editFormRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -136,6 +139,13 @@ export default function GuestsSection(props: Props) {
       window.clearTimeout(timeoutId);
     };
   }, [editingGuestId, isOpen]);
+
+  React.useEffect(() => {
+    if (!lastSavedAt) return;
+    setShowSaved(true);
+    const timeoutId = window.setTimeout(() => setShowSaved(false), 1800);
+    return () => window.clearTimeout(timeoutId);
+  }, [lastSavedAt]);
 
   const canSaveGuest =
     guestName.trim().length > 0 && (Number(guestCount) || 1) >= 1;
@@ -196,19 +206,19 @@ export default function GuestsSection(props: Props) {
                   fontWeight: 700,
                 }}
               >
-                Editacni rezim: upravujes existujiciho hosta.
+                Editační režim: upravuješ existujícího hosta.
               </div>
             )}
             <input
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
               onKeyDown={handleGuestNameKeyDown}
-              aria-label="Jmeno hosta"
+              aria-label="Jméno hosta"
               placeholder="Jméno hosta"
               style={inputStyle}
             />
 
-            <select value={guestSide} onChange={(e) => setGuestSide(e.target.value as GuestSide)} aria-label="Strana hostu" style={inputStyle}>
+            <select value={guestSide} onChange={(e) => setGuestSide(e.target.value as GuestSide)} aria-label="Strana hostů" style={inputStyle}>
               {guestSides.map((side) => (
                 <option key={side} value={side}>Strana: {side}</option>
               ))}
@@ -227,7 +237,7 @@ export default function GuestsSection(props: Props) {
               inputMode="numeric"
               value={guestCount}
               onChange={(e) => setGuestCount(e.target.value)}
-              aria-label="Pocet osob"
+              aria-label="Počet osob"
               placeholder="Počet osob"
               style={inputStyle}
             />
@@ -237,7 +247,7 @@ export default function GuestsSection(props: Props) {
                 type="checkbox"
                 checked={guestAccommodation}
                 onChange={(e) => setGuestAccommodation(e.target.checked)}
-                aria-label="Bude prespavat"
+                aria-label="Bude přespávat"
               />
               Bude přespávat
             </label>
@@ -247,7 +257,7 @@ export default function GuestsSection(props: Props) {
                 type="checkbox"
                 checked={guestChild}
                 onChange={(e) => setGuestChild(e.target.checked)}
-                aria-label="Je dite"
+                aria-label="Je dítě"
               />
               Je to dítě
             </label>
@@ -261,7 +271,7 @@ export default function GuestsSection(props: Props) {
             <input
               value={guestNote}
               onChange={(e) => setGuestNote(e.target.value)}
-              aria-label="Poznamka k hostovi"
+              aria-label="Poznámka k hostovi"
               placeholder="Komentář / poznámka"
               style={inputStyle}
             />
@@ -273,10 +283,10 @@ export default function GuestsSection(props: Props) {
                 disabled={saving || !canSaveGuest}
               >
                 {saving
-                  ? "Ukladam..."
+                  ? "Ukládám..."
                   : editingGuestId
-                  ? "Ulozit zmeny"
-                  : "Pridat hosta"}
+                  ? "Uložit změny"
+                  : "Přidat hosta"}
               </button>
               {editingGuestId && (
                 <button
@@ -288,6 +298,11 @@ export default function GuestsSection(props: Props) {
                 </button>
               )}
             </div>
+            {showSaved && (
+              <div style={{ color: "#166534", fontWeight: 700, fontSize: 13 }}>
+                Uloženo
+              </div>
+            )}
           </div>
 
           <div style={filterCardStyle}>

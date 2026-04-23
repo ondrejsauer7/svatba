@@ -74,11 +74,11 @@ const sectionOrder: SectionKey[] = [
   "notes",
 ];
 const sectionLabels: Record<SectionKey, string> = {
-  dashboard: "Prehled",
+  dashboard: "Přehled",
   tasks: "Checklist",
-  budget: "Rozpocet",
-  guests: "Hoste",
-  notes: "Poznamky",
+  budget: "Rozpočet",
+  guests: "Hosté",
+  notes: "Poznámky",
 };
 
 type BackupFile = {
@@ -185,6 +185,10 @@ export default function App() {
   const [savingBudget, setSavingBudget] = useState(false);
   const [savingGuest, setSavingGuest] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+  const [taskLastSavedAt, setTaskLastSavedAt] = useState<number | null>(null);
+  const [budgetLastSavedAt, setBudgetLastSavedAt] = useState<number | null>(null);
+  const [guestLastSavedAt, setGuestLastSavedAt] = useState<number | null>(null);
+  const [noteLastSavedAt, setNoteLastSavedAt] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [undoEntry, setUndoEntry] = useState<UndoEntry | null>(null);
@@ -291,7 +295,7 @@ export default function App() {
   function stageUndo(entry: UndoEntry, label: string) {
     clearUndoTimer();
     setUndoEntry(entry);
-    showToast(`${label} smazan. Muzes ho vratit tlacitkem Obnovit.`);
+    showToast(`${label} smazán. Můžeš ho vrátit tlačítkem Obnovit.`);
     undoTimerRef.current = window.setTimeout(() => {
       setUndoEntry(null);
       undoTimerRef.current = null;
@@ -316,7 +320,7 @@ export default function App() {
         });
         const row = inserted?.[0] as Task;
         setTasks((prev) => [row, ...prev]);
-        showToast("Ukol obnoven");
+        showToast("Úkol obnoven");
         return;
       }
 
@@ -327,7 +331,7 @@ export default function App() {
         });
         const row = inserted?.[0] as BudgetItem;
         setBudgetItems((prev) => [row, ...prev]);
-        showToast("Polozka rozpoctu obnovena");
+        showToast("Položka rozpočtu obnovena");
         return;
       }
 
@@ -348,7 +352,7 @@ export default function App() {
       });
       const row = inserted?.[0] as Note;
       setNotes((prev) => [row, ...prev]);
-      showToast("Poznamka obnovena");
+      showToast("Poznámka obnovena");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Obnoveni smazane polozky selhalo");
     } finally {
@@ -563,7 +567,7 @@ export default function App() {
     setGuestSideFilter("Vše");
     setGuestRsvpFilter("Vše");
     setGuestSearch("");
-    showToast("Filtry vycisteny");
+    showToast("Filtry vyčištěny");
   }
 
   function exportData() {
@@ -587,7 +591,7 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
     showToast(
-      `Zaloha exportovana (${getImportSummary(tasks, budgetItems, guests, notes)})`
+      `Záloha exportovana (${getImportSummary(tasks, budgetItems, guests, notes)})`
     );
   }
 
@@ -758,6 +762,7 @@ export default function App() {
         showToast("Úkol přidán");
       }
 
+      setTaskLastSavedAt(Date.now());
       resetTaskForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při ukládání úkolu");
@@ -803,7 +808,7 @@ export default function App() {
 
       setTasks((prev) => prev.filter((t) => t.id !== id));
       if (editingTaskId === id) resetTaskForm();
-      stageUndo({ kind: "task", item: taskToDelete }, "Ukol");
+      stageUndo({ kind: "task", item: taskToDelete }, "Úkol");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při mazání úkolu");
     }
@@ -879,6 +884,7 @@ export default function App() {
         showToast("Položka rozpočtu přidána");
       }
 
+      setBudgetLastSavedAt(Date.now());
       resetBudgetForm();
     } catch (err) {
       setError(
@@ -894,7 +900,7 @@ export default function App() {
       setError("");
       const budgetItemToDelete = budgetItems.find((item) => item.id === id);
       if (!budgetItemToDelete) return;
-      const shouldDelete = confirmDestructiveAction("polozku rozpoctu", budgetItemToDelete?.name);
+      const shouldDelete = confirmDestructiveAction("položku rozpočtu", budgetItemToDelete?.name);
       if (!shouldDelete) return;
 
       await supabaseRequest(`budget?id=eq.${id}`, {
@@ -904,7 +910,7 @@ export default function App() {
 
       setBudgetItems((prev) => prev.filter((item) => item.id !== id));
       if (editingBudgetId === id) resetBudgetForm();
-      stageUndo({ kind: "budget", item: budgetItemToDelete }, "Polozka rozpoctu");
+      stageUndo({ kind: "budget", item: budgetItemToDelete }, "Položka rozpočtu");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Chyba při mazání rozpočtu"
@@ -999,6 +1005,7 @@ export default function App() {
         showToast("Host přidán");
       }
 
+      setGuestLastSavedAt(Date.now());
       resetGuestForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při ukládání hosta");
@@ -1135,6 +1142,7 @@ export default function App() {
         showToast("Poznámka přidána");
       }
 
+      setNoteLastSavedAt(Date.now());
       resetNoteForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při ukládání poznámky");
@@ -1157,7 +1165,7 @@ export default function App() {
       const preview = noteToDelete?.text
         ? `${noteToDelete.text.slice(0, 40)}${noteToDelete.text.length > 40 ? "..." : ""}`
         : undefined;
-      const shouldDelete = confirmDestructiveAction("poznamku", preview);
+      const shouldDelete = confirmDestructiveAction("poznámku", preview);
       if (!shouldDelete) return;
 
       await supabaseRequest(`notes?id=eq.${id}`, {
@@ -1167,7 +1175,7 @@ export default function App() {
 
       setNotes((prev) => prev.filter((n) => n.id !== id));
       if (editingNoteId === id) resetNoteForm();
-      stageUndo({ kind: "note", item: noteToDelete }, "Poznamka");
+      stageUndo({ kind: "note", item: noteToDelete }, "Poznámka");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba při mazání poznámky");
     }
@@ -1307,19 +1315,19 @@ export default function App() {
       })
     : "--:--";
   const activeSectionSaveLabel = savingTask
-    ? "Ukladam checklist..."
+    ? "Ukládám checklist..."
     : savingBudget
-    ? "Ukladam rozpocet..."
+    ? "Ukládám rozpočet..."
     : savingGuest
-    ? "Ukladam hosty..."
+    ? "Ukládám hosty..."
     : savingNote
-    ? "Ukladam poznamky..."
+    ? "Ukládám poznámky..."
     : "";
   const anySectionSaving = savingTask || savingBudget || savingGuest || savingNote;
   const anySaving = busyTopBar || anySectionSaving;
   const statusText = busyTopBar
-    ? "Probiha hromadna operace..."
-    : activeSectionSaveLabel || `Pripraveno - sync ${lastSyncLabel}`;
+    ? "Probíhá hromadná operace..."
+    : activeSectionSaveLabel || `Připraveno - sync ${lastSyncLabel}`;
 
   if (loading) {
     return <div style={loadingStyle}>Načítám data ze Supabase...</div>;
@@ -1328,22 +1336,22 @@ export default function App() {
   return (
     <div style={containerStyle}>
       <header style={heroStyle} className="wedding-reveal">
-        <h1 style={titleStyle}>Svatba planner</h1>
+        <h1 style={titleStyle}>Svatba</h1>
         <div style={heroStatsGridStyle}>
           <div style={heroStatCardStyle}>
             <p style={heroStatLabelStyle}>Postup checklistu</p>
             <p style={heroStatValueStyle}>{taskCompletionRate} %</p>
           </div>
           <div style={heroStatCardStyle}>
-            <p style={heroStatLabelStyle}>Hostu potvrzeno</p>
+            <p style={heroStatLabelStyle}>Hostů potvrzeno</p>
             <p style={heroStatValueStyle}>{guestStats.confirmed}</p>
           </div>
           <div style={heroStatCardStyle}>
-            <p style={heroStatLabelStyle}>Zbyva doplatit</p>
+            <p style={heroStatLabelStyle}>Zbývá doplatit</p>
             <p style={heroStatValueStyle}>{budgetStats.totalRemaining} Kc</p>
           </div>
           <div style={heroStatCardStyle}>
-            <p style={heroStatLabelStyle}>Posledni sync</p>
+            <p style={heroStatLabelStyle}>Poslední sync</p>
             <p style={heroStatValueStyle}>{lastSyncLabel}</p>
           </div>
         </div>
@@ -1370,7 +1378,7 @@ export default function App() {
             />
           </div>
           <div style={{ fontWeight: 700, color: "#334155", fontSize: 14 }}>
-            Uhrazeny rozpocet: {budgetPaidRate} %
+            Uhrazený rozpočet: {budgetPaidRate} %
           </div>
           <div
             style={{
@@ -1460,7 +1468,7 @@ export default function App() {
             style={secondaryButtonStyle}
             disabled={anySaving}
           >
-            Obnovit smazane
+            Obnovit smazané
           </button>
         )}
 
@@ -1516,6 +1524,7 @@ export default function App() {
           taskNote={taskNote}
           setTaskNote={setTaskNote}
           editingTaskId={editingTaskId}
+          lastSavedAt={taskLastSavedAt}
           saveTask={saveTask}
           resetTaskForm={resetTaskForm}
           saving={savingTask}
@@ -1569,6 +1578,7 @@ export default function App() {
           budgetNote={budgetNote}
           setBudgetNote={setBudgetNote}
           editingBudgetId={editingBudgetId}
+          lastSavedAt={budgetLastSavedAt}
           saveBudgetItem={saveBudgetItem}
           resetBudgetForm={resetBudgetForm}
           saving={savingBudget}
@@ -1614,6 +1624,7 @@ export default function App() {
           guestNote={guestNote}
           setGuestNote={setGuestNote}
           editingGuestId={editingGuestId}
+          lastSavedAt={guestLastSavedAt}
           saveGuest={saveGuest}
           resetGuestForm={resetGuestForm}
           saving={savingGuest}
@@ -1642,6 +1653,7 @@ export default function App() {
           noteAuthor={noteAuthor}
           setNoteAuthor={setNoteAuthor}
           editingNoteId={editingNoteId}
+          lastSavedAt={noteLastSavedAt}
           saveNote={saveNote}
           resetNoteForm={resetNoteForm}
           saving={savingNote}
