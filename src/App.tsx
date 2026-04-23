@@ -40,26 +40,27 @@ import BudgetSection from "./sections/BudgetSection";
 import GuestsSection from "./sections/GuestsSection";
 import NotesSection from "./sections/NotesSection";
 
-const people: Person[] = ["Ondra", "Kája", "Oba"];
-const taskStatuses: TaskStatus[] = ["To do", "Rozdělané", "Čeká", "Hotovo"];
-const taskPriorities: TaskPriority[] = ["Nízká", "Střední", "Vysoká"];
+const people: Person[] = ["Ondra", "KĂˇja", "Oba"];
+const taskStatuses: TaskStatus[] = ["To do", "RozdÄ›lanĂ©", "ÄŚekĂˇ", "Hotovo"];
+const taskPriorities: TaskPriority[] = ["NĂ­zkĂˇ", "StĹ™ednĂ­", "VysokĂˇ"];
 const categories: BudgetCategory[] = [
-  "Místo",
+  "MĂ­sto",
   "Fotograf",
-  "Prstýnky",
-  "Oblečení",
+  "PrstĂ˝nky",
+  "ObleÄŤenĂ­",
   "Hudba",
-  "Jídlo",
+  "JĂ­dlo",
   "Dekorace",
   "Dort",
   "Doprava",
-  "Ostatní",
+  "OstatnĂ­",
 ];
-const paymentStatuses: PaymentStatus[] = ["Nezaplaceno", "Záloha", "Zaplaceno"];
-const guestSides: GuestSide[] = ["Ondra", "Kája", "Společní"];
-const rsvpStatuses: RsvpStatus[] = ["Bez odpovědi", "Potvrzeno", "Odmítl"];
+const paymentStatuses: PaymentStatus[] = ["Nezaplaceno", "ZĂˇloha", "Zaplaceno"];
+const guestSides: GuestSide[] = ["Ondra", "KĂˇja", "SpoleÄŤnĂ­"];
+const rsvpStatuses: RsvpStatus[] = ["Bez odpovÄ›di", "Potvrzeno", "OdmĂ­tl"];
 
 type BackupFile = {
+  version: number;
   tasks: Task[];
   budgetItems: BudgetItem[];
   guests: Guest[];
@@ -78,6 +79,56 @@ function hasStringId(value: unknown): value is { id: string } {
 function safeArrayWithId<T extends { id: string }>(value: unknown): T[] {
   if (!Array.isArray(value)) return [];
   return value.filter(hasStringId) as T[];
+}
+
+function parseRequiredArrayWithId<T extends { id: string }>(
+  value: unknown,
+  fieldName: string
+): T[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`Neplatna zaloha: chybi pole "${fieldName}".`);
+  }
+
+  const parsed = safeArrayWithId<T>(value);
+  if (parsed.length !== value.length) {
+    throw new Error(
+      `Neplatna zaloha: pole "${fieldName}" obsahuje zaznam bez id.`
+    );
+  }
+
+  return parsed;
+}
+
+function formatBackupFileName(date: Date) {
+  const parts = new Intl.DateTimeFormat("cs-CZ", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const get = (type: string) => parts.find((p) => p.type === type)?.value || "";
+  return `svatba-backup-${get("year")}-${get("month")}-${get("day")}_${get(
+    "hour"
+  )}-${get("minute")}.json`;
+}
+
+function formatImportSourceDate(source: string | undefined) {
+  if (!source) return "neznamy cas exportu";
+  const date = new Date(source);
+  if (Number.isNaN(date.getTime())) return "neznamy cas exportu";
+  return date.toLocaleString("cs-CZ");
+}
+
+function getImportSummary(
+  importedTasks: Task[],
+  importedBudget: BudgetItem[],
+  importedGuests: Guest[],
+  importedNotes: Note[]
+) {
+  return `ukoly: ${importedTasks.length}, rozpocet: ${importedBudget.length}, hoste: ${importedGuests.length}, poznamky: ${importedNotes.length}`;
 }
 
 function getRecordTime(item: { updated_at?: string; created_at?: string }) {
@@ -124,11 +175,11 @@ export default function App() {
   const [taskOwner, setTaskOwner] = useState<Person>("Oba");
   const [taskStatus, setTaskStatus] = useState<TaskStatus>("To do");
   const [taskNote, setTaskNote] = useState("");
-  const [taskPriority, setTaskPriority] = useState<TaskPriority>("Střední");
+  const [taskPriority, setTaskPriority] = useState<TaskPriority>("StĹ™ednĂ­");
   const [taskUpdatedBy, setTaskUpdatedBy] = useState<Person>("Oba");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
-  const [category, setCategory] = useState<BudgetCategory>("Ostatní");
+  const [category, setCategory] = useState<BudgetCategory>("OstatnĂ­");
   const [budgetName, setBudgetName] = useState("");
   const [planned, setPlanned] = useState("");
   const [actual, setActual] = useState("");
@@ -145,8 +196,8 @@ export default function App() {
 
   const [guestName, setGuestName] = useState("");
   const [guestNote, setGuestNote] = useState("");
-  const [guestSide, setGuestSide] = useState<GuestSide>("Společní");
-  const [guestRsvp, setGuestRsvp] = useState<RsvpStatus>("Bez odpovědi");
+  const [guestSide, setGuestSide] = useState<GuestSide>("SpoleÄŤnĂ­");
+  const [guestRsvp, setGuestRsvp] = useState<RsvpStatus>("Bez odpovÄ›di");
   const [guestCount, setGuestCount] = useState("1");
   const [guestAccommodation, setGuestAccommodation] = useState(false);
   const [guestChild, setGuestChild] = useState(false);
@@ -157,29 +208,29 @@ export default function App() {
   const [noteAuthor, setNoteAuthor] = useState<Person>("Oba");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
 
-  const [taskOwnerFilter, setTaskOwnerFilter] = useState<Person | "Vše">("Vše");
-  const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | "Vše">("Vše");
-  const [taskPriorityFilter, setTaskPriorityFilter] = useState<TaskPriority | "Vše">("Vše");
+  const [taskOwnerFilter, setTaskOwnerFilter] = useState<Person | "VĹˇe">("VĹˇe");
+  const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | "VĹˇe">("VĹˇe");
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState<TaskPriority | "VĹˇe">("VĹˇe");
   const [taskSort, setTaskSort] = useState<"deadline" | "owner" | "priority">(
     "deadline"
   );
   const [taskSearch, setTaskSearch] = useState("");
 
   const [budgetCategoryFilter, setBudgetCategoryFilter] =
-    useState<BudgetCategory | "Vše">("Vše");
+    useState<BudgetCategory | "VĹˇe">("VĹˇe");
   const [budgetPaymentFilter, setBudgetPaymentFilter] =
-    useState<PaymentStatus | "Vše">("Vše");
+    useState<PaymentStatus | "VĹˇe">("VĹˇe");
   const [budgetOwnerFilter, setBudgetOwnerFilter] =
-    useState<Person | "Vše">("Vše");
+    useState<Person | "VĹˇe">("VĹˇe");
   const [budgetSort, setBudgetSort] = useState<
     "due_date" | "category" | "remaining"
   >("due_date");
   const [budgetSearch, setBudgetSearch] = useState("");
 
   const [guestSideFilter, setGuestSideFilter] =
-    useState<GuestSide | "Vše">("Vše");
+    useState<GuestSide | "VĹˇe">("VĹˇe");
   const [guestRsvpFilter, setGuestRsvpFilter] =
-    useState<RsvpStatus | "Vše">("Vše");
+    useState<RsvpStatus | "VĹˇe">("VĹˇe");
   const [guestSearch, setGuestSearch] = useState("");
 
   function showToast(message: string) {
@@ -214,7 +265,7 @@ export default function App() {
       setGuests((guestsData || []) as Guest[]);
       setNotes((notesData || []) as Note[]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při načítání");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i naÄŤĂ­tĂˇnĂ­");
     } finally {
       setLoading(false);
     }
@@ -234,13 +285,13 @@ export default function App() {
     setTaskOwner("Oba");
     setTaskStatus("To do");
     setTaskNote("");
-    setTaskPriority("Střední");
+    setTaskPriority("StĹ™ednĂ­");
     setTaskUpdatedBy("Oba");
     setEditingTaskId(null);
   }
 
   function resetBudgetForm() {
-    setCategory("Ostatní");
+    setCategory("OstatnĂ­");
     setBudgetName("");
     setPlanned("");
     setActual("");
@@ -258,8 +309,8 @@ export default function App() {
   function resetGuestForm() {
     setGuestName("");
     setGuestNote("");
-    setGuestSide("Společní");
-    setGuestRsvp("Bez odpovědi");
+    setGuestSide("SpoleÄŤnĂ­");
+    setGuestRsvp("Bez odpovÄ›di");
     setGuestCount("1");
     setGuestAccommodation(false);
     setGuestChild(false);
@@ -275,6 +326,7 @@ export default function App() {
 
   function exportData() {
     const data: BackupFile = {
+      version: 1,
       tasks,
       budgetItems,
       guests,
@@ -289,10 +341,22 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "svatba-backup.json";
+    a.download = formatBackupFileName(new Date());
     a.click();
     URL.revokeObjectURL(url);
-    showToast("Záloha exportována");
+    showToast(
+      `Zaloha exportovana (${getImportSummary(tasks, budgetItems, guests, notes)})`
+    );
+  }
+
+  function confirmDestructiveAction(label: string, detail?: string) {
+    const firstMessage = detail
+      ? `Opravdu smazat ${label}: "${detail}"?`
+      : `Opravdu smazat ${label}?`;
+    const firstConfirmation = window.confirm(firstMessage);
+    if (!firstConfirmation) return false;
+
+    return window.confirm("Tuto akci nejde vratit. Potvrdit trvale smazani?");
   }
 
   async function replaceTableData<T extends { id: string }>(
@@ -320,18 +384,46 @@ export default function App() {
       setSaving(true);
       setError("");
 
+      const text = await file.text();
+      const data = JSON.parse(text) as unknown;
+      if (!data || typeof data !== "object") {
+        throw new Error("Neplatny format zalohy.");
+      }
+
+      const typedData = data as Partial<BackupFile>;
+      const importedTasks = parseRequiredArrayWithId<Task>(
+        typedData.tasks,
+        "tasks"
+      );
+      const importedBudget = parseRequiredArrayWithId<BudgetItem>(
+        typedData.budgetItems,
+        "budgetItems"
+      );
+      const importedGuests = parseRequiredArrayWithId<Guest>(
+        typedData.guests,
+        "guests"
+      );
+      const importedNotes = parseRequiredArrayWithId<Note>(
+        typedData.notes,
+        "notes"
+      );
+      const importSummary = getImportSummary(
+        importedTasks,
+        importedBudget,
+        importedGuests,
+        importedNotes
+      );
+      const exportTime = formatImportSourceDate(typedData.exportedAt);
+
       const shouldReplace = window.confirm(
-        "Import přepíše všechna současná data. Pokračovat?"
+        `Import nahraje data (${importSummary}). Zdrojova zaloha: ${exportTime}. Pokracovat?`
       );
       if (!shouldReplace) return;
 
-      const text = await file.text();
-      const data = JSON.parse(text) as Partial<BackupFile>;
-
-      const importedTasks = safeArrayWithId<Task>(data.tasks);
-      const importedBudget = safeArrayWithId<BudgetItem>(data.budgetItems);
-      const importedGuests = safeArrayWithId<Guest>(data.guests);
-      const importedNotes = safeArrayWithId<Note>(data.notes);
+      const shouldConfirmDanger = window.confirm(
+        "Import prepise vsechna aktualni data. Opravdu provest import?"
+      );
+      if (!shouldConfirmDanger) return;
 
       const [previousTasks, previousBudget, previousGuests, previousNotes] =
         await Promise.all([
@@ -372,7 +464,7 @@ export default function App() {
       }
 
       await loadAll();
-      showToast("Import hotový");
+      showToast(`Import hotovy (${importSummary})`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import selhal");
     } finally {
@@ -410,7 +502,7 @@ export default function App() {
 
         const row = updated?.[0] as Task;
         setTasks((prev) => prev.map((t) => (t.id === row.id ? row : t)));
-        showToast("Úkol upraven");
+        showToast("Ăškol upraven");
       } else {
         const inserted = await supabaseRequest("tasks", {
           method: "POST",
@@ -421,12 +513,12 @@ export default function App() {
 
         const row = inserted?.[0] as Task;
         setTasks((prev) => [row, ...prev]);
-        showToast("Úkol přidán");
+        showToast("Ăškol pĹ™idĂˇn");
       }
 
       resetTaskForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při ukládání úkolu");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i uklĂˇdĂˇnĂ­ Ăşkolu");
     } finally {
       setSaving(false);
     }
@@ -448,16 +540,17 @@ export default function App() {
 
       const row = updated?.[0] as Task;
       setTasks((prev) => prev.map((t) => (t.id === row.id ? row : t)));
-      showToast("Úkol změněn");
+      showToast("Ăškol zmÄ›nÄ›n");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při změně úkolu");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i zmÄ›nÄ› Ăşkolu");
     }
   }
 
   async function deleteTask(id: string) {
     try {
       setError("");
-      const shouldDelete = window.confirm("Opravdu smazat úkol?");
+      const taskToDelete = tasks.find((t) => t.id === id);
+      const shouldDelete = confirmDestructiveAction("ukol", taskToDelete?.text);
       if (!shouldDelete) return;
 
       await supabaseRequest(`tasks?id=eq.${id}`, {
@@ -467,9 +560,9 @@ export default function App() {
 
       setTasks((prev) => prev.filter((t) => t.id !== id));
       if (editingTaskId === id) resetTaskForm();
-      showToast("Úkol smazán");
+      showToast("Ăškol smazĂˇn");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při mazání úkolu");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i mazĂˇnĂ­ Ăşkolu");
     }
   }
 
@@ -479,7 +572,7 @@ export default function App() {
     setTaskOwner(task.owner || "Oba");
     setTaskStatus(task.status || "To do");
     setTaskNote(task.note || "");
-    setTaskPriority(task.priority || "Střední");
+    setTaskPriority(task.priority || "StĹ™ednĂ­");
     setTaskUpdatedBy((task.updated_by as Person) || "Oba");
     setEditingTaskId(task.id);
   }
@@ -491,7 +584,7 @@ export default function App() {
       (Number(actual) || 0) < 0 ||
       (Number(deposit) || 0) < 0
     ) {
-      setError("Částky nesmí být záporné.");
+      setError("ÄŚĂˇstky nesmĂ­ bĂ˝t zĂˇpornĂ©.");
       return;
     }
 
@@ -529,7 +622,7 @@ export default function App() {
         setBudgetItems((prev) =>
           prev.map((item) => (item.id === row.id ? row : item))
         );
-        showToast("Rozpočet upraven");
+        showToast("RozpoÄŤet upraven");
       } else {
         const inserted = await supabaseRequest("budget", {
           method: "POST",
@@ -540,13 +633,13 @@ export default function App() {
 
         const row = inserted?.[0] as BudgetItem;
         setBudgetItems((prev) => [row, ...prev]);
-        showToast("Položka rozpočtu přidána");
+        showToast("PoloĹľka rozpoÄŤtu pĹ™idĂˇna");
       }
 
       resetBudgetForm();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Chyba při ukládání rozpočtu"
+        err instanceof Error ? err.message : "Chyba pĹ™i uklĂˇdĂˇnĂ­ rozpoÄŤtu"
       );
     } finally {
       setSaving(false);
@@ -556,7 +649,8 @@ export default function App() {
   async function deleteBudgetItem(id: string) {
     try {
       setError("");
-      const shouldDelete = window.confirm("Opravdu smazat položku rozpočtu?");
+      const budgetItemToDelete = budgetItems.find((item) => item.id === id);
+      const shouldDelete = confirmDestructiveAction("polozku rozpoctu", budgetItemToDelete?.name);
       if (!shouldDelete) return;
 
       await supabaseRequest(`budget?id=eq.${id}`, {
@@ -566,10 +660,10 @@ export default function App() {
 
       setBudgetItems((prev) => prev.filter((item) => item.id !== id));
       if (editingBudgetId === id) resetBudgetForm();
-      showToast("Položka rozpočtu smazána");
+      showToast("PoloĹľka rozpoÄŤtu smazĂˇna");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Chyba při mazání rozpočtu"
+        err instanceof Error ? err.message : "Chyba pĹ™i mazĂˇnĂ­ rozpoÄŤtu"
       );
     }
   }
@@ -609,16 +703,16 @@ export default function App() {
 
       const row = updated?.[0] as BudgetItem;
       setBudgetItems((prev) => prev.map((b) => (b.id === row.id ? row : b)));
-      showToast("Platba změněna");
+      showToast("Platba zmÄ›nÄ›na");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při změně platby");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i zmÄ›nÄ› platby");
     }
   }
 
   async function saveGuest() {
     if (!guestName.trim()) return;
     if ((Number(guestCount) || 1) < 1) {
-      setError("Počet osob musí být alespoň 1.");
+      setError("PoÄŤet osob musĂ­ bĂ˝t alespoĹ 1.");
       return;
     }
 
@@ -658,12 +752,12 @@ export default function App() {
 
         const row = inserted?.[0] as Guest;
         setGuests((prev) => [row, ...prev]);
-        showToast("Host přidán");
+        showToast("Host pĹ™idĂˇn");
       }
 
       resetGuestForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při ukládání hosta");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i uklĂˇdĂˇnĂ­ hosta");
     } finally {
       setSaving(false);
     }
@@ -678,16 +772,16 @@ export default function App() {
         method: "PATCH",
         body: JSON.stringify({
           confirmed: nextConfirmed,
-          rsvp_status: nextConfirmed ? "Potvrzeno" : "Bez odpovědi",
+          rsvp_status: nextConfirmed ? "Potvrzeno" : "Bez odpovÄ›di",
           updated_at: new Date().toISOString(),
         }),
       });
 
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
-      showToast("RSVP změněno");
+      showToast("RSVP zmÄ›nÄ›no");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při změně hosta");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i zmÄ›nÄ› hosta");
     }
   }
 
@@ -704,9 +798,9 @@ export default function App() {
 
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
-      showToast("Přespání změněno");
+      showToast("PĹ™espĂˇnĂ­ zmÄ›nÄ›no");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při změně přespání");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i zmÄ›nÄ› pĹ™espĂˇnĂ­");
     }
   }
 
@@ -723,16 +817,17 @@ export default function App() {
 
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
-      showToast("Dítě změněno");
+      showToast("DĂ­tÄ› zmÄ›nÄ›no");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při změně dítěte");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i zmÄ›nÄ› dĂ­tÄ›te");
     }
   }
 
   async function deleteGuest(id: string) {
     try {
       setError("");
-      const shouldDelete = window.confirm("Opravdu smazat hosta?");
+      const guestToDelete = guests.find((g) => g.id === id);
+      const shouldDelete = confirmDestructiveAction("hosta", guestToDelete?.name);
       if (!shouldDelete) return;
 
       await supabaseRequest(`guests?id=eq.${id}`, {
@@ -742,17 +837,17 @@ export default function App() {
 
       setGuests((prev) => prev.filter((g) => g.id !== id));
       if (editingGuestId === id) resetGuestForm();
-      showToast("Host smazán");
+      showToast("Host smazĂˇn");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při mazání hosta");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i mazĂˇnĂ­ hosta");
     }
   }
 
   function startEditGuest(guest: Guest) {
     setGuestName(guest.name);
     setGuestNote(guest.note || "");
-    setGuestSide(guest.side || "Společní");
-    setGuestRsvp(guest.rsvp_status || "Bez odpovědi");
+    setGuestSide(guest.side || "SpoleÄŤnĂ­");
+    setGuestRsvp(guest.rsvp_status || "Bez odpovÄ›di");
     setGuestCount(String(guest.guest_count || 1));
     setGuestAccommodation(Boolean(guest.accommodation));
     setGuestChild(Boolean(guest.child));
@@ -781,7 +876,7 @@ export default function App() {
 
         const row = updated?.[0] as Note;
         setNotes((prev) => prev.map((n) => (n.id === row.id ? row : n)));
-        showToast("Poznámka upravena");
+        showToast("PoznĂˇmka upravena");
       } else {
         const inserted = await supabaseRequest("notes", {
           method: "POST",
@@ -792,12 +887,12 @@ export default function App() {
 
         const row = inserted?.[0] as Note;
         setNotes((prev) => [row, ...prev]);
-        showToast("Poznámka přidána");
+        showToast("PoznĂˇmka pĹ™idĂˇna");
       }
 
       resetNoteForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při ukládání poznámky");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i uklĂˇdĂˇnĂ­ poznĂˇmky");
     } finally {
       setSaving(false);
     }
@@ -812,7 +907,11 @@ export default function App() {
   async function deleteNote(id: string) {
     try {
       setError("");
-      const shouldDelete = window.confirm("Opravdu smazat poznámku?");
+      const noteToDelete = notes.find((n) => n.id === id);
+      const preview = noteToDelete?.text
+        ? `${noteToDelete.text.slice(0, 40)}${noteToDelete.text.length > 40 ? "..." : ""}`
+        : undefined;
+      const shouldDelete = confirmDestructiveAction("poznamku", preview);
       if (!shouldDelete) return;
 
       await supabaseRequest(`notes?id=eq.${id}`, {
@@ -822,21 +921,21 @@ export default function App() {
 
       setNotes((prev) => prev.filter((n) => n.id !== id));
       if (editingNoteId === id) resetNoteForm();
-      showToast("Poznámka smazána");
+      showToast("PoznĂˇmka smazĂˇna");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba při mazání poznámky");
+      setError(err instanceof Error ? err.message : "Chyba pĹ™i mazĂˇnĂ­ poznĂˇmky");
     }
   }
 
   const filteredTasks = useMemo(() => {
     let list = [...tasks];
-    if (taskOwnerFilter !== "Vše") {
+    if (taskOwnerFilter !== "VĹˇe") {
       list = list.filter((t) => t.owner === taskOwnerFilter);
     }
-    if (taskStatusFilter !== "Vše") {
+    if (taskStatusFilter !== "VĹˇe") {
       list = list.filter((t) => t.status === taskStatusFilter);
     }
-    if (taskPriorityFilter !== "Vše") {
+    if (taskPriorityFilter !== "VĹˇe") {
       list = list.filter((t) => t.priority === taskPriorityFilter);
     }
     if (taskSearch.trim()) {
@@ -859,13 +958,13 @@ export default function App() {
 
   const filteredBudget = useMemo(() => {
     let list = [...budgetItems];
-    if (budgetCategoryFilter !== "Vše") {
+    if (budgetCategoryFilter !== "VĹˇe") {
       list = list.filter((b) => b.category === budgetCategoryFilter);
     }
-    if (budgetPaymentFilter !== "Vše") {
+    if (budgetPaymentFilter !== "VĹˇe") {
       list = list.filter((b) => b.payment_status === budgetPaymentFilter);
     }
-    if (budgetOwnerFilter !== "Vše") {
+    if (budgetOwnerFilter !== "VĹˇe") {
       list = list.filter((b) => b.owner === budgetOwnerFilter);
     }
     if (budgetSearch.trim()) {
@@ -889,10 +988,10 @@ export default function App() {
 
   const filteredGuests = useMemo(() => {
     let list = [...guests];
-    if (guestSideFilter !== "Vše") {
+    if (guestSideFilter !== "VĹˇe") {
       list = list.filter((g) => g.side === guestSideFilter);
     }
-    if (guestRsvpFilter !== "Vše") {
+    if (guestRsvpFilter !== "VĹˇe") {
       list = list.filter((g) => g.rsvp_status === guestRsvpFilter);
     }
     if (guestSearch.trim()) {
@@ -948,12 +1047,12 @@ export default function App() {
   }, [budgetItems]);
 
   if (loading) {
-    return <div style={loadingStyle}>Načítám data ze Supabase…</div>;
+    return <div style={loadingStyle}>NaÄŤĂ­tĂˇm data ze Supabaseâ€¦</div>;
   }
 
   return (
     <div style={containerStyle}>
-      <h1 style={titleStyle}>💍 Svatba planner</h1>
+      <h1 style={titleStyle}>đź’Ť Svatba planner</h1>
 
       <div style={topBarStyle}>
         <button
@@ -988,7 +1087,7 @@ export default function App() {
           onChange={importData}
         />
 
-        <span style={statusStyle}>{saving ? "Ukládám…" : "Připraveno"}</span>
+        <span style={statusStyle}>{saving ? "UklĂˇdĂˇmâ€¦" : "PĹ™ipraveno"}</span>
       </div>
 
       {error && <div style={errorStyle}>{error}</div>}
@@ -1157,3 +1256,7 @@ export default function App() {
     </div>
   );
 }
+
+
+
+
