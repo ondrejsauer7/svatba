@@ -218,3 +218,27 @@ export const chipStyle = (active: boolean): React.CSSProperties => ({
   color: active ? "#fff" : "#333",
   fontWeight: 700,
 });
+export const toastStyle: React.CSSProperties = {
+  position: "fixed",
+  right: 16,
+  bottom: 16,
+  background: "#111",
+  color: "#fff",
+  padding: "12px 14px",
+  borderRadius: 12,
+  fontWeight: 700,
+  zIndex: 1000,
+  boxShadow: "0 6px 18px rgba(0,0,0,0.18)",
+};
+
+export const textareaStyle: React.CSSProperties = {
+  padding: 12,
+  width: "100%",
+  minHeight: 110,
+  boxSizing: "border-box",
+  borderRadius: 10,
+  border: "1px solid #ccc",
+  fontSize: 16,
+  fontFamily: "Arial, sans-serif",
+  resize: "vertical",
+};
