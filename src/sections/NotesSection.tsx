@@ -130,6 +130,7 @@ export default function NotesSection(props: Props) {
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
               onKeyDown={handleNoteKeyDown}
+              aria-label="Text poznamky"
               placeholder="Sem si pište nápady, co probrat, co dokoupit, co rozhodnout..."
               style={textareaStyle}
             />
@@ -141,6 +142,7 @@ export default function NotesSection(props: Props) {
             <select
               value={noteAuthor}
               onChange={(e) => setNoteAuthor(e.target.value as Person)}
+              aria-label="Autor poznamky"
               style={inputStyle}
             >
               {people.map((person) => (
@@ -217,4 +219,5 @@ export default function NotesSection(props: Props) {
     </section>
   );
 }
+
 

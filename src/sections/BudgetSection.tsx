@@ -359,7 +359,7 @@ export default function BudgetSection(props: Props) {
                 Editacni rezim: upravujes existujici polozku rozpoctu.
               </div>
             )}
-            <select value={category} onChange={(e) => setCategory(e.target.value as BudgetCategory)} style={inputStyle}>
+            <select value={category} onChange={(e) => setCategory(e.target.value as BudgetCategory)} aria-label="Kategorie rozpoctu" style={inputStyle}>
               {categories.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
@@ -369,11 +369,12 @@ export default function BudgetSection(props: Props) {
               value={budgetName}
               onChange={(e) => setBudgetName(e.target.value)}
               onKeyDown={handleBudgetNameKeyDown}
+              aria-label="Nazev polozky rozpoctu"
               placeholder="Položka"
               style={inputStyle}
             />
 
-            <select value={budgetOwner} onChange={(e) => setBudgetOwner(e.target.value as Person)} style={inputStyle}>
+            <select value={budgetOwner} onChange={(e) => setBudgetOwner(e.target.value as Person)} aria-label="Kdo resi polozku rozpoctu" style={inputStyle}>
               {people.map((person) => (
                 <option key={person} value={person}>Řeší: {person}</option>
               ))}
@@ -382,6 +383,7 @@ export default function BudgetSection(props: Props) {
             <input
               value={vendor}
               onChange={(e) => setVendor(e.target.value)}
+              aria-label="Dodavatel"
               placeholder="Dodavatel / kontakt"
               style={inputStyle}
             />
@@ -390,10 +392,11 @@ export default function BudgetSection(props: Props) {
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
+              aria-label="Datum splatnosti"
               style={inputStyle}
             />
 
-            <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)} style={inputStyle}>
+            <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)} aria-label="Stav platby" style={inputStyle}>
               {paymentStatuses.map((status) => (
                 <option key={status} value={status}>Stav platby: {status}</option>
               ))}
@@ -406,6 +409,7 @@ export default function BudgetSection(props: Props) {
               inputMode="numeric"
               value={planned}
               onChange={(e) => setPlanned(e.target.value)}
+              aria-label="Planovana cena"
               placeholder="Plánovaná cena"
               style={inputStyle}
             />
@@ -417,6 +421,7 @@ export default function BudgetSection(props: Props) {
               inputMode="numeric"
               value={actual}
               onChange={(e) => setActual(e.target.value)}
+              aria-label="Skutecna cena"
               placeholder="Skutečná cena"
               style={inputStyle}
             />
@@ -428,6 +433,7 @@ export default function BudgetSection(props: Props) {
               inputMode="numeric"
               value={deposit}
               onChange={(e) => setDeposit(e.target.value)}
+              aria-label="Zaloha"
               placeholder="Záloha"
               style={inputStyle}
             />
@@ -437,11 +443,12 @@ export default function BudgetSection(props: Props) {
                 type="checkbox"
                 checked={fullyPaid}
                 onChange={(e) => setFullyPaid(e.target.checked)}
+                aria-label="Zaplaceno cele"
               />
               Zaplaceno celé
             </label>
 
-            <select value={budgetUpdatedBy} onChange={(e) => setBudgetUpdatedBy(e.target.value as Person)} style={inputStyle}>
+            <select value={budgetUpdatedBy} onChange={(e) => setBudgetUpdatedBy(e.target.value as Person)} aria-label="Kdo upravoval rozpocet" style={inputStyle}>
               {people.map((person) => (
                 <option key={person} value={person}>Update dělal: {person}</option>
               ))}
@@ -450,6 +457,7 @@ export default function BudgetSection(props: Props) {
             <input
               value={budgetNote}
               onChange={(e) => setBudgetNote(e.target.value)}
+              aria-label="Poznamka k polozce rozpoctu"
               placeholder="Komentář / poznámka"
               style={inputStyle}
             />
@@ -484,6 +492,7 @@ export default function BudgetSection(props: Props) {
             <input
               value={budgetSearch}
               onChange={(e) => setBudgetSearch(e.target.value)}
+              aria-label="Hledat v rozpoctu"
               placeholder="Hledat v rozpočtu, dodavateli a poznámkách"
               style={inputStyle}
             />
@@ -539,6 +548,7 @@ export default function BudgetSection(props: Props) {
             <select
               value={budgetSort}
               onChange={(e) => setBudgetSort(e.target.value as "due_date" | "category" | "remaining")}
+              aria-label="Razeni polozek rozpoctu"
               style={inputStyle}
             >
               <option value="due_date">Řadit podle splatnosti</option>
@@ -626,3 +636,4 @@ export default function BudgetSection(props: Props) {
     </section>
   );
 }
+

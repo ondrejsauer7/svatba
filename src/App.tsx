@@ -48,24 +48,24 @@ import BudgetSection from "./sections/BudgetSection";
 import GuestsSection from "./sections/GuestsSection";
 import NotesSection from "./sections/NotesSection";
 
-const people: Person[] = ["Ondra", "KĂˇja", "Oba"];
-const taskStatuses: TaskStatus[] = ["To do", "RozdÄ›lanĂ©", "ÄŚekĂˇ", "Hotovo"];
-const taskPriorities: TaskPriority[] = ["NĂ­zkĂˇ", "StĹ™ednĂ­", "VysokĂˇ"];
+const people: Person[] = ["Ondra", "Kája", "Oba"];
+const taskStatuses: TaskStatus[] = ["To do", "Rozdělané", "Čeká", "Hotovo"];
+const taskPriorities: TaskPriority[] = ["Nízká", "Střední", "Vysoká"];
 const categories: BudgetCategory[] = [
-  "MĂ­sto",
+  "Místo",
   "Fotograf",
-  "PrstĂ˝nky",
-  "ObleÄŤenĂ­",
+  "Prstýnky",
+  "Oblečení",
   "Hudba",
-  "JĂ­dlo",
+  "Jídlo",
   "Dekorace",
   "Dort",
   "Doprava",
-  "OstatnĂ­",
+  "Ostatní",
 ];
-const paymentStatuses: PaymentStatus[] = ["Nezaplaceno", "ZĂˇloha", "Zaplaceno"];
-const guestSides: GuestSide[] = ["Ondra", "KĂˇja", "SpoleÄŤnĂ­"];
-const rsvpStatuses: RsvpStatus[] = ["Bez odpovÄ›di", "Potvrzeno", "OdmĂ­tl"];
+const paymentStatuses: PaymentStatus[] = ["Nezaplaceno", "Záloha", "Zaplaceno"];
+const guestSides: GuestSide[] = ["Ondra", "Kája", "Společní"];
+const rsvpStatuses: RsvpStatus[] = ["Bez odpovědi", "Potvrzeno", "Odmítl"];
 const sectionsStorageKey = "svatba.sections.open.v2";
 const sectionOrder: SectionKey[] = [
   "dashboard",
@@ -90,6 +90,12 @@ type BackupFile = {
   notes: Note[];
   exportedAt: string;
 };
+
+type UndoEntry =
+  | { kind: "task"; item: Task }
+  | { kind: "budget"; item: BudgetItem }
+  | { kind: "guest"; item: Guest }
+  | { kind: "note"; item: Note };
 
 function hasStringId(value: unknown): value is { id: string } {
   return Boolean(
@@ -175,11 +181,17 @@ function getLatestItem<T extends { updated_at?: string; created_at?: string }>(
 
 export default function App() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [busyTopBar, setBusyTopBar] = useState(false);
+  const [savingTask, setSavingTask] = useState(false);
+  const [savingBudget, setSavingBudget] = useState(false);
+  const [savingGuest, setSavingGuest] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [undoEntry, setUndoEntry] = useState<UndoEntry | null>(null);
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
   const [activeSection, setActiveSection] = useState<SectionKey>("dashboard");
+  const undoTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dashboardRef = useRef<HTMLDivElement | null>(null);
   const tasksRef = useRef<HTMLDivElement | null>(null);
@@ -205,11 +217,11 @@ export default function App() {
   const [taskOwner, setTaskOwner] = useState<Person>("Oba");
   const [taskStatus, setTaskStatus] = useState<TaskStatus>("To do");
   const [taskNote, setTaskNote] = useState("");
-  const [taskPriority, setTaskPriority] = useState<TaskPriority>("StĹ™ednĂ­");
+  const [taskPriority, setTaskPriority] = useState<TaskPriority>("Střední");
   const [taskUpdatedBy, setTaskUpdatedBy] = useState<Person>("Oba");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
-  const [category, setCategory] = useState<BudgetCategory>("OstatnĂ­");
+  const [category, setCategory] = useState<BudgetCategory>("Ostatní");
   const [budgetName, setBudgetName] = useState("");
   const [planned, setPlanned] = useState("");
   const [actual, setActual] = useState("");
@@ -226,8 +238,8 @@ export default function App() {
 
   const [guestName, setGuestName] = useState("");
   const [guestNote, setGuestNote] = useState("");
-  const [guestSide, setGuestSide] = useState<GuestSide>("SpoleÄŤnĂ­");
-  const [guestRsvp, setGuestRsvp] = useState<RsvpStatus>("Bez odpovÄ›di");
+  const [guestSide, setGuestSide] = useState<GuestSide>("Společní");
+  const [guestRsvp, setGuestRsvp] = useState<RsvpStatus>("Bez odpovědi");
   const [guestCount, setGuestCount] = useState("1");
   const [guestAccommodation, setGuestAccommodation] = useState(false);
   const [guestChild, setGuestChild] = useState(false);
@@ -238,29 +250,29 @@ export default function App() {
   const [noteAuthor, setNoteAuthor] = useState<Person>("Oba");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
 
-  const [taskOwnerFilter, setTaskOwnerFilter] = useState<Person | "VĹˇe">("VĹˇe");
-  const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | "VĹˇe">("VĹˇe");
-  const [taskPriorityFilter, setTaskPriorityFilter] = useState<TaskPriority | "VĹˇe">("VĹˇe");
+  const [taskOwnerFilter, setTaskOwnerFilter] = useState<Person | "Vše">("Vše");
+  const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | "Vše">("Vše");
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState<TaskPriority | "Vše">("Vše");
   const [taskSort, setTaskSort] = useState<"deadline" | "owner" | "priority">(
     "deadline"
   );
   const [taskSearch, setTaskSearch] = useState("");
 
   const [budgetCategoryFilter, setBudgetCategoryFilter] =
-    useState<BudgetCategory | "VĹˇe">("VĹˇe");
+    useState<BudgetCategory | "Vše">("Vše");
   const [budgetPaymentFilter, setBudgetPaymentFilter] =
-    useState<PaymentStatus | "VĹˇe">("VĹˇe");
+    useState<PaymentStatus | "Vše">("Vše");
   const [budgetOwnerFilter, setBudgetOwnerFilter] =
-    useState<Person | "VĹˇe">("VĹˇe");
+    useState<Person | "Vše">("Vše");
   const [budgetSort, setBudgetSort] = useState<
     "due_date" | "category" | "remaining"
   >("due_date");
   const [budgetSearch, setBudgetSearch] = useState("");
 
   const [guestSideFilter, setGuestSideFilter] =
-    useState<GuestSide | "VĹˇe">("VĹˇe");
+    useState<GuestSide | "Vše">("Vše");
   const [guestRsvpFilter, setGuestRsvpFilter] =
-    useState<RsvpStatus | "VĹˇe">("VĹˇe");
+    useState<RsvpStatus | "Vše">("Vše");
   const [guestSearch, setGuestSearch] = useState("");
 
   function showToast(message: string) {
@@ -268,6 +280,81 @@ export default function App() {
     window.setTimeout(() => {
       setToast("");
     }, 2200);
+  }
+
+  function clearUndoTimer() {
+    if (undoTimerRef.current !== null) {
+      window.clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+  }
+
+  function stageUndo(entry: UndoEntry, label: string) {
+    clearUndoTimer();
+    setUndoEntry(entry);
+    showToast(`${label} smazan. Muzes ho vratit tlacitkem Obnovit.`);
+    undoTimerRef.current = window.setTimeout(() => {
+      setUndoEntry(null);
+      undoTimerRef.current = null;
+    }, 9000);
+  }
+
+  async function restoreLastDeleted() {
+    if (!undoEntry) return;
+
+    const entry = undoEntry;
+    clearUndoTimer();
+    setUndoEntry(null);
+    setError("");
+
+    try {
+      setBusyTopBar(true);
+
+      if (entry.kind === "task") {
+        const inserted = await supabaseRequest("tasks", {
+          method: "POST",
+          body: JSON.stringify([entry.item]),
+        });
+        const row = inserted?.[0] as Task;
+        setTasks((prev) => [row, ...prev]);
+        showToast("Ukol obnoven");
+        return;
+      }
+
+      if (entry.kind === "budget") {
+        const inserted = await supabaseRequest("budget", {
+          method: "POST",
+          body: JSON.stringify([entry.item]),
+        });
+        const row = inserted?.[0] as BudgetItem;
+        setBudgetItems((prev) => [row, ...prev]);
+        showToast("Polozka rozpoctu obnovena");
+        return;
+      }
+
+      if (entry.kind === "guest") {
+        const inserted = await supabaseRequest("guests", {
+          method: "POST",
+          body: JSON.stringify([entry.item]),
+        });
+        const row = inserted?.[0] as Guest;
+        setGuests((prev) => [row, ...prev]);
+        showToast("Host obnoven");
+        return;
+      }
+
+      const inserted = await supabaseRequest("notes", {
+        method: "POST",
+        body: JSON.stringify([entry.item]),
+      });
+      const row = inserted?.[0] as Note;
+      setNotes((prev) => [row, ...prev]);
+      showToast("Poznamka obnovena");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Obnoveni smazane polozky selhalo");
+    } finally {
+      setBusyTopBar(false);
+    }
   }
 
   async function loadAll() {
@@ -296,7 +383,7 @@ export default function App() {
       setNotes((notesData || []) as Note[]);
       setLastLoadedAt(new Date());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i naÄŤĂ­tĂˇnĂ­");
+      setError(err instanceof Error ? err.message : "Chyba při načítání");
     } finally {
       setLoading(false);
     }
@@ -323,6 +410,12 @@ export default function App() {
     }
 
     loadAll();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearUndoTimer();
+    };
   }, []);
 
   useEffect(() => {
@@ -416,13 +509,13 @@ export default function App() {
     setTaskOwner("Oba");
     setTaskStatus("To do");
     setTaskNote("");
-    setTaskPriority("StĹ™ednĂ­");
+    setTaskPriority("Střední");
     setTaskUpdatedBy("Oba");
     setEditingTaskId(null);
   }
 
   function resetBudgetForm() {
-    setCategory("OstatnĂ­");
+    setCategory("Ostatní");
     setBudgetName("");
     setPlanned("");
     setActual("");
@@ -440,8 +533,8 @@ export default function App() {
   function resetGuestForm() {
     setGuestName("");
     setGuestNote("");
-    setGuestSide("SpoleÄŤnĂ­");
-    setGuestRsvp("Bez odpovÄ›di");
+    setGuestSide("Společní");
+    setGuestRsvp("Bez odpovědi");
     setGuestCount("1");
     setGuestAccommodation(false);
     setGuestChild(false);
@@ -456,20 +549,20 @@ export default function App() {
   }
 
   function resetAllFilters() {
-    setTaskOwnerFilter("VĹˇe");
-    setTaskStatusFilter("VĹˇe");
-    setTaskPriorityFilter("VĹˇe");
+    setTaskOwnerFilter("Vše");
+    setTaskStatusFilter("Vše");
+    setTaskPriorityFilter("Vše");
     setTaskSort("deadline");
     setTaskSearch("");
 
-    setBudgetCategoryFilter("VĹˇe");
-    setBudgetPaymentFilter("VĹˇe");
-    setBudgetOwnerFilter("VĹˇe");
+    setBudgetCategoryFilter("Vše");
+    setBudgetPaymentFilter("Vše");
+    setBudgetOwnerFilter("Vše");
     setBudgetSort("due_date");
     setBudgetSearch("");
 
-    setGuestSideFilter("VĹˇe");
-    setGuestRsvpFilter("VĹˇe");
+    setGuestSideFilter("Vše");
+    setGuestRsvpFilter("Vše");
     setGuestSearch("");
     showToast("Filtry vycisteny");
   }
@@ -531,7 +624,7 @@ export default function App() {
     if (!file) return;
 
     try {
-      setSaving(true);
+      setBusyTopBar(true);
       setError("");
 
       const text = await file.text();
@@ -618,7 +711,7 @@ export default function App() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import selhal");
     } finally {
-      setSaving(false);
+      setBusyTopBar(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -641,7 +734,7 @@ export default function App() {
     };
 
     try {
-      setSaving(true);
+      setSavingTask(true);
       setError("");
 
       if (editingTaskId) {
@@ -652,7 +745,7 @@ export default function App() {
 
         const row = updated?.[0] as Task;
         setTasks((prev) => prev.map((t) => (t.id === row.id ? row : t)));
-        showToast("Ăškol upraven");
+        showToast("Úkol upraven");
       } else {
         const inserted = await supabaseRequest("tasks", {
           method: "POST",
@@ -663,14 +756,14 @@ export default function App() {
 
         const row = inserted?.[0] as Task;
         setTasks((prev) => [row, ...prev]);
-        showToast("Ăškol pĹ™idĂˇn");
+        showToast("Úkol přidán");
       }
 
       resetTaskForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i uklĂˇdĂˇnĂ­ Ăşkolu");
+      setError(err instanceof Error ? err.message : "Chyba při ukládání úkolu");
     } finally {
-      setSaving(false);
+      setSavingTask(false);
     }
   }
 
@@ -690,9 +783,9 @@ export default function App() {
 
       const row = updated?.[0] as Task;
       setTasks((prev) => prev.map((t) => (t.id === row.id ? row : t)));
-      showToast("Ăškol zmÄ›nÄ›n");
+      showToast("Úkol změněn");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i zmÄ›nÄ› Ăşkolu");
+      setError(err instanceof Error ? err.message : "Chyba při změně úkolu");
     }
   }
 
@@ -700,6 +793,7 @@ export default function App() {
     try {
       setError("");
       const taskToDelete = tasks.find((t) => t.id === id);
+      if (!taskToDelete) return;
       const shouldDelete = confirmDestructiveAction("ukol", taskToDelete?.text);
       if (!shouldDelete) return;
 
@@ -710,9 +804,9 @@ export default function App() {
 
       setTasks((prev) => prev.filter((t) => t.id !== id));
       if (editingTaskId === id) resetTaskForm();
-      showToast("Ăškol smazĂˇn");
+      stageUndo({ kind: "task", item: taskToDelete }, "Ukol");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i mazĂˇnĂ­ Ăşkolu");
+      setError(err instanceof Error ? err.message : "Chyba při mazání úkolu");
     }
   }
 
@@ -722,7 +816,7 @@ export default function App() {
     setTaskOwner(task.owner || "Oba");
     setTaskStatus(task.status || "To do");
     setTaskNote(task.note || "");
-    setTaskPriority(task.priority || "StĹ™ednĂ­");
+    setTaskPriority(task.priority || "Střední");
     setTaskUpdatedBy((task.updated_by as Person) || "Oba");
     setEditingTaskId(task.id);
   }
@@ -734,7 +828,7 @@ export default function App() {
       (Number(actual) || 0) < 0 ||
       (Number(deposit) || 0) < 0
     ) {
-      setError("ÄŚĂˇstky nesmĂ­ bĂ˝t zĂˇpornĂ©.");
+      setError("Částky nesmí být záporné.");
       return;
     }
 
@@ -759,7 +853,7 @@ export default function App() {
     };
 
     try {
-      setSaving(true);
+      setSavingBudget(true);
       setError("");
 
       if (editingBudgetId) {
@@ -772,7 +866,7 @@ export default function App() {
         setBudgetItems((prev) =>
           prev.map((item) => (item.id === row.id ? row : item))
         );
-        showToast("RozpoÄŤet upraven");
+        showToast("Rozpočet upraven");
       } else {
         const inserted = await supabaseRequest("budget", {
           method: "POST",
@@ -783,16 +877,16 @@ export default function App() {
 
         const row = inserted?.[0] as BudgetItem;
         setBudgetItems((prev) => [row, ...prev]);
-        showToast("PoloĹľka rozpoÄŤtu pĹ™idĂˇna");
+        showToast("Položka rozpočtu přidána");
       }
 
       resetBudgetForm();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Chyba pĹ™i uklĂˇdĂˇnĂ­ rozpoÄŤtu"
+        err instanceof Error ? err.message : "Chyba při ukládání rozpočtu"
       );
     } finally {
-      setSaving(false);
+      setSavingBudget(false);
     }
   }
 
@@ -800,6 +894,7 @@ export default function App() {
     try {
       setError("");
       const budgetItemToDelete = budgetItems.find((item) => item.id === id);
+      if (!budgetItemToDelete) return;
       const shouldDelete = confirmDestructiveAction("polozku rozpoctu", budgetItemToDelete?.name);
       if (!shouldDelete) return;
 
@@ -810,10 +905,10 @@ export default function App() {
 
       setBudgetItems((prev) => prev.filter((item) => item.id !== id));
       if (editingBudgetId === id) resetBudgetForm();
-      showToast("PoloĹľka rozpoÄŤtu smazĂˇna");
+      stageUndo({ kind: "budget", item: budgetItemToDelete }, "Polozka rozpoctu");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Chyba pĹ™i mazĂˇnĂ­ rozpoÄŤtu"
+        err instanceof Error ? err.message : "Chyba při mazání rozpočtu"
       );
     }
   }
@@ -853,16 +948,16 @@ export default function App() {
 
       const row = updated?.[0] as BudgetItem;
       setBudgetItems((prev) => prev.map((b) => (b.id === row.id ? row : b)));
-      showToast("Platba zmÄ›nÄ›na");
+      showToast("Platba změněna");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i zmÄ›nÄ› platby");
+      setError(err instanceof Error ? err.message : "Chyba při změně platby");
     }
   }
 
   async function saveGuest() {
     if (!guestName.trim()) return;
     if ((Number(guestCount) || 1) < 1) {
-      setError("PoÄŤet osob musĂ­ bĂ˝t alespoĹ 1.");
+      setError("Počet osob musí být alespoň 1.");
       return;
     }
 
@@ -880,7 +975,7 @@ export default function App() {
     };
 
     try {
-      setSaving(true);
+      setSavingGuest(true);
       setError("");
 
       if (editingGuestId) {
@@ -902,14 +997,14 @@ export default function App() {
 
         const row = inserted?.[0] as Guest;
         setGuests((prev) => [row, ...prev]);
-        showToast("Host pĹ™idĂˇn");
+        showToast("Host přidán");
       }
 
       resetGuestForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i uklĂˇdĂˇnĂ­ hosta");
+      setError(err instanceof Error ? err.message : "Chyba při ukládání hosta");
     } finally {
-      setSaving(false);
+      setSavingGuest(false);
     }
   }
 
@@ -922,16 +1017,16 @@ export default function App() {
         method: "PATCH",
         body: JSON.stringify({
           confirmed: nextConfirmed,
-          rsvp_status: nextConfirmed ? "Potvrzeno" : "Bez odpovÄ›di",
+          rsvp_status: nextConfirmed ? "Potvrzeno" : "Bez odpovědi",
           updated_at: new Date().toISOString(),
         }),
       });
 
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
-      showToast("RSVP zmÄ›nÄ›no");
+      showToast("RSVP změněno");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i zmÄ›nÄ› hosta");
+      setError(err instanceof Error ? err.message : "Chyba při změně hosta");
     }
   }
 
@@ -948,9 +1043,9 @@ export default function App() {
 
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
-      showToast("PĹ™espĂˇnĂ­ zmÄ›nÄ›no");
+      showToast("Přespání změněno");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i zmÄ›nÄ› pĹ™espĂˇnĂ­");
+      setError(err instanceof Error ? err.message : "Chyba při změně přespání");
     }
   }
 
@@ -967,9 +1062,9 @@ export default function App() {
 
       const row = updated?.[0] as Guest;
       setGuests((prev) => prev.map((g) => (g.id === row.id ? row : g)));
-      showToast("DĂ­tÄ› zmÄ›nÄ›no");
+      showToast("Dítě změněno");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i zmÄ›nÄ› dĂ­tÄ›te");
+      setError(err instanceof Error ? err.message : "Chyba při změně dítěte");
     }
   }
 
@@ -977,6 +1072,7 @@ export default function App() {
     try {
       setError("");
       const guestToDelete = guests.find((g) => g.id === id);
+      if (!guestToDelete) return;
       const shouldDelete = confirmDestructiveAction("hosta", guestToDelete?.name);
       if (!shouldDelete) return;
 
@@ -987,17 +1083,17 @@ export default function App() {
 
       setGuests((prev) => prev.filter((g) => g.id !== id));
       if (editingGuestId === id) resetGuestForm();
-      showToast("Host smazĂˇn");
+      stageUndo({ kind: "guest", item: guestToDelete }, "Host");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i mazĂˇnĂ­ hosta");
+      setError(err instanceof Error ? err.message : "Chyba při mazání hosta");
     }
   }
 
   function startEditGuest(guest: Guest) {
     setGuestName(guest.name);
     setGuestNote(guest.note || "");
-    setGuestSide(guest.side || "SpoleÄŤnĂ­");
-    setGuestRsvp(guest.rsvp_status || "Bez odpovÄ›di");
+    setGuestSide(guest.side || "Společní");
+    setGuestRsvp(guest.rsvp_status || "Bez odpovědi");
     setGuestCount(String(guest.guest_count || 1));
     setGuestAccommodation(Boolean(guest.accommodation));
     setGuestChild(Boolean(guest.child));
@@ -1015,7 +1111,7 @@ export default function App() {
     };
 
     try {
-      setSaving(true);
+      setSavingNote(true);
       setError("");
 
       if (editingNoteId) {
@@ -1026,7 +1122,7 @@ export default function App() {
 
         const row = updated?.[0] as Note;
         setNotes((prev) => prev.map((n) => (n.id === row.id ? row : n)));
-        showToast("PoznĂˇmka upravena");
+        showToast("Poznámka upravena");
       } else {
         const inserted = await supabaseRequest("notes", {
           method: "POST",
@@ -1037,14 +1133,14 @@ export default function App() {
 
         const row = inserted?.[0] as Note;
         setNotes((prev) => [row, ...prev]);
-        showToast("PoznĂˇmka pĹ™idĂˇna");
+        showToast("Poznámka přidána");
       }
 
       resetNoteForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i uklĂˇdĂˇnĂ­ poznĂˇmky");
+      setError(err instanceof Error ? err.message : "Chyba při ukládání poznámky");
     } finally {
-      setSaving(false);
+      setSavingNote(false);
     }
   }
 
@@ -1058,6 +1154,7 @@ export default function App() {
     try {
       setError("");
       const noteToDelete = notes.find((n) => n.id === id);
+      if (!noteToDelete) return;
       const preview = noteToDelete?.text
         ? `${noteToDelete.text.slice(0, 40)}${noteToDelete.text.length > 40 ? "..." : ""}`
         : undefined;
@@ -1071,21 +1168,21 @@ export default function App() {
 
       setNotes((prev) => prev.filter((n) => n.id !== id));
       if (editingNoteId === id) resetNoteForm();
-      showToast("PoznĂˇmka smazĂˇna");
+      stageUndo({ kind: "note", item: noteToDelete }, "Poznamka");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chyba pĹ™i mazĂˇnĂ­ poznĂˇmky");
+      setError(err instanceof Error ? err.message : "Chyba při mazání poznámky");
     }
   }
 
   const filteredTasks = useMemo(() => {
     let list = [...tasks];
-    if (taskOwnerFilter !== "VĹˇe") {
+    if (taskOwnerFilter !== "Vše") {
       list = list.filter((t) => t.owner === taskOwnerFilter);
     }
-    if (taskStatusFilter !== "VĹˇe") {
+    if (taskStatusFilter !== "Vše") {
       list = list.filter((t) => t.status === taskStatusFilter);
     }
-    if (taskPriorityFilter !== "VĹˇe") {
+    if (taskPriorityFilter !== "Vše") {
       list = list.filter((t) => t.priority === taskPriorityFilter);
     }
     if (taskSearch.trim()) {
@@ -1108,13 +1205,13 @@ export default function App() {
 
   const filteredBudget = useMemo(() => {
     let list = [...budgetItems];
-    if (budgetCategoryFilter !== "VĹˇe") {
+    if (budgetCategoryFilter !== "Vše") {
       list = list.filter((b) => b.category === budgetCategoryFilter);
     }
-    if (budgetPaymentFilter !== "VĹˇe") {
+    if (budgetPaymentFilter !== "Vše") {
       list = list.filter((b) => b.payment_status === budgetPaymentFilter);
     }
-    if (budgetOwnerFilter !== "VĹˇe") {
+    if (budgetOwnerFilter !== "Vše") {
       list = list.filter((b) => b.owner === budgetOwnerFilter);
     }
     if (budgetSearch.trim()) {
@@ -1138,10 +1235,10 @@ export default function App() {
 
   const filteredGuests = useMemo(() => {
     let list = [...guests];
-    if (guestSideFilter !== "VĹˇe") {
+    if (guestSideFilter !== "Vše") {
       list = list.filter((g) => g.side === guestSideFilter);
     }
-    if (guestRsvpFilter !== "VĹˇe") {
+    if (guestRsvpFilter !== "Vše") {
       list = list.filter((g) => g.rsvp_status === guestRsvpFilter);
     }
     if (guestSearch.trim()) {
@@ -1200,15 +1297,33 @@ export default function App() {
     taskStats.total > 0
       ? Math.round((taskStats.completed / taskStats.total) * 100)
       : 0;
+  const budgetPaidRate =
+    budgetStats.totalActual > 0
+      ? Math.round((budgetStats.totalPaid / budgetStats.totalActual) * 100)
+      : 0;
   const lastSyncLabel = lastLoadedAt
     ? lastLoadedAt.toLocaleTimeString("cs-CZ", {
         hour: "2-digit",
         minute: "2-digit",
       })
     : "--:--";
+  const activeSectionSaveLabel = savingTask
+    ? "Ukladam checklist..."
+    : savingBudget
+    ? "Ukladam rozpocet..."
+    : savingGuest
+    ? "Ukladam hosty..."
+    : savingNote
+    ? "Ukladam poznamky..."
+    : "";
+  const anySectionSaving = savingTask || savingBudget || savingGuest || savingNote;
+  const anySaving = busyTopBar || anySectionSaving;
+  const statusText = busyTopBar
+    ? "Probiha hromadna operace..."
+    : activeSectionSaveLabel || `Pripraveno - sync ${lastSyncLabel}`;
 
   if (loading) {
-    return <div style={loadingStyle}>NaÄŤĂ­tĂˇm data ze Supabaseâ€¦</div>;
+    return <div style={loadingStyle}>Načítám data ze Supabase...</div>;
   }
 
   return (
@@ -1237,6 +1352,50 @@ export default function App() {
             <p style={heroStatValueStyle}>{lastSyncLabel}</p>
           </div>
         </div>
+        <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
+          <div style={{ fontWeight: 700, color: "#334155", fontSize: 14 }}>
+            Checklist: {taskCompletionRate} %
+          </div>
+          <div
+            style={{
+              height: 10,
+              background: "rgba(148, 163, 184, 0.25)",
+              borderRadius: 999,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${taskCompletionRate}%`,
+                background: "linear-gradient(90deg, #2563eb 0%, #4f46e5 100%)",
+                borderRadius: 999,
+                transition: "width 220ms ease",
+              }}
+            />
+          </div>
+          <div style={{ fontWeight: 700, color: "#334155", fontSize: 14 }}>
+            Uhrazeny rozpocet: {budgetPaidRate} %
+          </div>
+          <div
+            style={{
+              height: 10,
+              background: "rgba(148, 163, 184, 0.25)",
+              borderRadius: 999,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${budgetPaidRate}%`,
+                background: "linear-gradient(90deg, #f59e0b 0%, #ea580c 100%)",
+                borderRadius: 999,
+                transition: "width 220ms ease",
+              }}
+            />
+          </div>
+        </div>
       </header>
 
       <div style={quickNavStyle} className="wedding-reveal">
@@ -1255,7 +1414,7 @@ export default function App() {
         <button
           onClick={loadAll}
           style={primaryButtonStyle}
-          disabled={loading || saving}
+          disabled={loading || anySaving}
         >
           Obnovit data
         </button>
@@ -1263,7 +1422,7 @@ export default function App() {
         <button
           onClick={exportData}
           style={secondaryButtonStyle}
-          disabled={saving}
+          disabled={anySaving}
         >
           Export dat
         </button>
@@ -1271,7 +1430,7 @@ export default function App() {
         <button
           onClick={() => fileInputRef.current?.click()}
           style={secondaryButtonStyle}
-          disabled={saving}
+          disabled={anySaving}
         >
           Import dat
         </button>
@@ -1279,7 +1438,7 @@ export default function App() {
         <button
           onClick={resetAllFilters}
           style={secondaryButtonStyle}
-          disabled={saving}
+          disabled={anySaving}
         >
           Vycistit filtry
         </button>
@@ -1287,7 +1446,7 @@ export default function App() {
         <button
           onClick={() => setAllSections(true)}
           style={secondaryButtonStyle}
-          disabled={saving}
+          disabled={anySaving}
         >
           Rozbalit vse
         </button>
@@ -1295,10 +1454,20 @@ export default function App() {
         <button
           onClick={() => setAllSections(false)}
           style={secondaryButtonStyle}
-          disabled={saving}
+          disabled={anySaving}
         >
           Sbalit vse
         </button>
+
+        {undoEntry && (
+          <button
+            onClick={restoreLastDeleted}
+            style={secondaryButtonStyle}
+            disabled={anySaving}
+          >
+            Obnovit smazane
+          </button>
+        )}
 
         <input
           ref={fileInputRef}
@@ -1309,7 +1478,7 @@ export default function App() {
         />
 
         <span style={statusStyle}>
-          {saving ? "Ukladam..." : `Pripraveno · sync ${lastSyncLabel}`}
+          {statusText}
         </span>
       </div>
 
@@ -1354,7 +1523,7 @@ export default function App() {
           editingTaskId={editingTaskId}
           saveTask={saveTask}
           resetTaskForm={resetTaskForm}
-          saving={saving}
+          saving={savingTask}
           taskOwnerFilter={taskOwnerFilter}
           setTaskOwnerFilter={setTaskOwnerFilter}
           taskStatusFilter={taskStatusFilter}
@@ -1407,7 +1576,7 @@ export default function App() {
           editingBudgetId={editingBudgetId}
           saveBudgetItem={saveBudgetItem}
           resetBudgetForm={resetBudgetForm}
-          saving={saving}
+          saving={savingBudget}
           budgetCategoryFilter={budgetCategoryFilter}
           setBudgetCategoryFilter={setBudgetCategoryFilter}
           budgetPaymentFilter={budgetPaymentFilter}
@@ -1452,7 +1621,7 @@ export default function App() {
           editingGuestId={editingGuestId}
           saveGuest={saveGuest}
           resetGuestForm={resetGuestForm}
-          saving={saving}
+          saving={savingGuest}
           guestSideFilter={guestSideFilter}
           setGuestSideFilter={setGuestSideFilter}
           guestRsvpFilter={guestRsvpFilter}
@@ -1480,7 +1649,7 @@ export default function App() {
           editingNoteId={editingNoteId}
           saveNote={saveNote}
           resetNoteForm={resetNoteForm}
-          saving={saving}
+          saving={savingNote}
           notes={notes}
           startEditNote={startEditNote}
           deleteNote={deleteNote}
@@ -1489,6 +1658,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 

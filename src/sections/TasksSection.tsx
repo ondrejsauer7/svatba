@@ -312,6 +312,7 @@ export default function TasksSection(props: Props) {
               value={taskInput}
               onChange={(e) => setTaskInput(e.target.value)}
               onKeyDown={handleTaskInputKeyDown}
+              aria-label="Nazev ukolu"
               placeholder="Např. zamluvit místo"
               style={inputStyle}
             />
@@ -319,6 +320,7 @@ export default function TasksSection(props: Props) {
             <select
               value={taskOwner}
               onChange={(e) => setTaskOwner(e.target.value as Person)}
+              aria-label="Vlastnik ukolu"
               style={inputStyle}
             >
               {people.map((person) => (
@@ -331,6 +333,7 @@ export default function TasksSection(props: Props) {
             <select
               value={taskStatus}
               onChange={(e) => setTaskStatus(e.target.value as TaskStatus)}
+              aria-label="Stav ukolu"
               style={inputStyle}
             >
               {taskStatuses.map((status) => (
@@ -343,6 +346,7 @@ export default function TasksSection(props: Props) {
             <select
               value={taskPriority}
               onChange={(e) => setTaskPriority(e.target.value as TaskPriority)}
+              aria-label="Priorita ukolu"
               style={inputStyle}
             >
               {taskPriorities.map((priority) => (
@@ -355,6 +359,7 @@ export default function TasksSection(props: Props) {
             <select
               value={taskUpdatedBy}
               onChange={(e) => setTaskUpdatedBy(e.target.value as Person)}
+              aria-label="Kdo upravoval ukol"
               style={inputStyle}
             >
               {people.map((person) => (
@@ -368,12 +373,14 @@ export default function TasksSection(props: Props) {
               type="date"
               value={taskDeadline}
               onChange={(e) => setTaskDeadline(e.target.value)}
+              aria-label="Deadline ukolu"
               style={inputStyle}
             />
 
             <input
               value={taskNote}
               onChange={(e) => setTaskNote(e.target.value)}
+              aria-label="Poznamka k ukolu"
               placeholder="Komentář / poznámka"
               style={inputStyle}
             />
@@ -409,6 +416,7 @@ export default function TasksSection(props: Props) {
             <input
               value={taskSearch}
               onChange={(e) => setTaskSearch(e.target.value)}
+              aria-label="Hledat ukoly"
               placeholder="Hledat v úkolech a poznámkách"
               style={inputStyle}
             />
@@ -482,6 +490,7 @@ export default function TasksSection(props: Props) {
               onChange={(e) =>
                 setTaskSort(e.target.value as "deadline" | "owner" | "priority")
               }
+              aria-label="Razeni ukolu"
               style={inputStyle}
             >
               <option value="deadline">Řadit podle deadline</option>
@@ -528,3 +537,4 @@ export default function TasksSection(props: Props) {
     </section>
   );
 }
+

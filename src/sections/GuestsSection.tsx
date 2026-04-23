@@ -203,17 +203,18 @@ export default function GuestsSection(props: Props) {
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
               onKeyDown={handleGuestNameKeyDown}
+              aria-label="Jmeno hosta"
               placeholder="Jméno hosta"
               style={inputStyle}
             />
 
-            <select value={guestSide} onChange={(e) => setGuestSide(e.target.value as GuestSide)} style={inputStyle}>
+            <select value={guestSide} onChange={(e) => setGuestSide(e.target.value as GuestSide)} aria-label="Strana hostu" style={inputStyle}>
               {guestSides.map((side) => (
                 <option key={side} value={side}>Strana: {side}</option>
               ))}
             </select>
 
-            <select value={guestRsvp} onChange={(e) => setGuestRsvp(e.target.value as RsvpStatus)} style={inputStyle}>
+            <select value={guestRsvp} onChange={(e) => setGuestRsvp(e.target.value as RsvpStatus)} aria-label="RSVP stav hosta" style={inputStyle}>
               {rsvpStatuses.map((status) => (
                 <option key={status} value={status}>RSVP: {status}</option>
               ))}
@@ -226,6 +227,7 @@ export default function GuestsSection(props: Props) {
               inputMode="numeric"
               value={guestCount}
               onChange={(e) => setGuestCount(e.target.value)}
+              aria-label="Pocet osob"
               placeholder="Počet osob"
               style={inputStyle}
             />
@@ -235,6 +237,7 @@ export default function GuestsSection(props: Props) {
                 type="checkbox"
                 checked={guestAccommodation}
                 onChange={(e) => setGuestAccommodation(e.target.checked)}
+                aria-label="Bude prespavat"
               />
               Bude přespávat
             </label>
@@ -244,11 +247,12 @@ export default function GuestsSection(props: Props) {
                 type="checkbox"
                 checked={guestChild}
                 onChange={(e) => setGuestChild(e.target.checked)}
+                aria-label="Je dite"
               />
               Je to dítě
             </label>
 
-            <select value={guestUpdatedBy} onChange={(e) => setGuestUpdatedBy(e.target.value as Person)} style={inputStyle}>
+            <select value={guestUpdatedBy} onChange={(e) => setGuestUpdatedBy(e.target.value as Person)} aria-label="Kdo upravoval hosta" style={inputStyle}>
               {people.map((person) => (
                 <option key={person} value={person}>Update dělal: {person}</option>
               ))}
@@ -257,6 +261,7 @@ export default function GuestsSection(props: Props) {
             <input
               value={guestNote}
               onChange={(e) => setGuestNote(e.target.value)}
+              aria-label="Poznamka k hostovi"
               placeholder="Komentář / poznámka"
               style={inputStyle}
             />
@@ -291,6 +296,7 @@ export default function GuestsSection(props: Props) {
             <input
               value={guestSearch}
               onChange={(e) => setGuestSearch(e.target.value)}
+              aria-label="Hledat hosta"
               placeholder="Hledat hosta nebo poznámku"
               style={inputStyle}
             />
@@ -375,3 +381,4 @@ export default function GuestsSection(props: Props) {
     </section>
   );
 }
+
