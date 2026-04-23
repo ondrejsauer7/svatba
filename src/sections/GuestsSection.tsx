@@ -119,9 +119,23 @@ export default function GuestsSection(props: Props) {
   const editFormRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
-    if (editingGuestId && isOpen) {
-      editFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    if (!editingGuestId || !isOpen || !editFormRef.current) return;
+
+    const scrollToForm = () => {
+      editFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+    };
+
+    const rafId = window.requestAnimationFrame(scrollToForm);
+    const timeoutId = window.setTimeout(scrollToForm, 220);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+    };
   }, [editingGuestId, isOpen]);
 
   return (

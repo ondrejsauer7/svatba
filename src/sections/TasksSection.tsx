@@ -146,9 +146,23 @@ export default function TasksSection(props: Props) {
   const editFormRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
-    if (editingTaskId && isOpen) {
-      editFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    if (!editingTaskId || !isOpen || !editFormRef.current) return;
+
+    const scrollToForm = () => {
+      editFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+    };
+
+    const rafId = window.requestAnimationFrame(scrollToForm);
+    const timeoutId = window.setTimeout(scrollToForm, 220);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+    };
   }, [editingTaskId, isOpen]);
 
   const visibleTasks = showCompleted
