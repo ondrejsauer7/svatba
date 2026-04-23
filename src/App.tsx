@@ -26,8 +26,16 @@ import {
 import {
   containerStyle,
   errorStyle,
+  heroStatCardStyle,
+  heroStatLabelStyle,
+  heroStatValueStyle,
+  heroStatsGridStyle,
+  heroStyle,
+  heroSubTitleStyle,
   loadingStyle,
   primaryButtonStyle,
+  quickNavButtonStyle,
+  quickNavStyle,
   secondaryButtonStyle,
   statusStyle,
   titleStyle,
@@ -58,6 +66,21 @@ const categories: BudgetCategory[] = [
 const paymentStatuses: PaymentStatus[] = ["Nezaplaceno", "ZĂˇloha", "Zaplaceno"];
 const guestSides: GuestSide[] = ["Ondra", "KĂˇja", "SpoleÄŤnĂ­"];
 const rsvpStatuses: RsvpStatus[] = ["Bez odpovÄ›di", "Potvrzeno", "OdmĂ­tl"];
+const sectionsStorageKey = "svatba.sections.open.v2";
+const sectionOrder: SectionKey[] = [
+  "dashboard",
+  "tasks",
+  "budget",
+  "guests",
+  "notes",
+];
+const sectionLabels: Record<SectionKey, string> = {
+  dashboard: "Prehled",
+  tasks: "Checklist",
+  budget: "Rozpocet",
+  guests: "Hoste",
+  notes: "Poznamky",
+};
 
 type BackupFile = {
   version: number;
@@ -155,7 +178,14 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
+  const [activeSection, setActiveSection] = useState<SectionKey>("dashboard");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dashboardRef = useRef<HTMLDivElement | null>(null);
+  const tasksRef = useRef<HTMLDivElement | null>(null);
+  const budgetRef = useRef<HTMLDivElement | null>(null);
+  const guestsRef = useRef<HTMLDivElement | null>(null);
+  const notesRef = useRef<HTMLDivElement | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
@@ -264,6 +294,7 @@ export default function App() {
       setBudgetItems((budgetData || []) as BudgetItem[]);
       setGuests((guestsData || []) as Guest[]);
       setNotes((notesData || []) as Note[]);
+      setLastLoadedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chyba pĹ™i naÄŤĂ­tĂˇnĂ­");
     } finally {
@@ -272,12 +303,112 @@ export default function App() {
   }
 
   useEffect(() => {
+    try {
+      const stored = localStorage.getItem(sectionsStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<Record<SectionKey, unknown>>;
+        const readOpen = (key: SectionKey) =>
+          typeof parsed[key] === "boolean" ? (parsed[key] as boolean) : true;
+
+        setSectionsOpen({
+          dashboard: readOpen("dashboard"),
+          tasks: readOpen("tasks"),
+          budget: readOpen("budget"),
+          guests: readOpen("guests"),
+          notes: readOpen("notes"),
+        });
+      }
+    } catch {
+      // fallback to defaults when local storage contains invalid value
+    }
+
     loadAll();
   }, []);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(sectionsStorageKey, JSON.stringify(sectionsOpen));
+    } catch {
+      // ignore browser storage errors
+    }
+  }, [sectionsOpen]);
+
+  function getSectionRef(section: SectionKey) {
+    if (section === "dashboard") return dashboardRef;
+    if (section === "tasks") return tasksRef;
+    if (section === "budget") return budgetRef;
+    if (section === "guests") return guestsRef;
+    return notesRef;
+  }
+
+  function scrollToSection(section: SectionKey) {
+    setActiveSection(section);
+    setSectionsOpen((prev) => ({ ...prev, [section]: true }));
+
+    window.requestAnimationFrame(() => {
+      const target = getSectionRef(section).current;
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   function toggleSection(section: SectionKey) {
+    setActiveSection(section);
     setSectionsOpen((prev) => ({ ...prev, [section]: !prev[section] }));
   }
+
+  function setAllSections(nextOpen: boolean) {
+    setSectionsOpen({
+      dashboard: nextOpen,
+      tasks: nextOpen,
+      budget: nextOpen,
+      guests: nextOpen,
+      notes: nextOpen,
+    });
+  }
+
+  useEffect(() => {
+    if (loading) return;
+
+    const observed = sectionOrder
+      .map((section) => ({ section, node: getSectionRef(section).current }))
+      .filter(
+        (item): item is { section: SectionKey; node: HTMLDivElement } =>
+          Boolean(item.node)
+      );
+
+    if (observed.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let best: { section: SectionKey; ratio: number } | null = null;
+
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const match = observed.find((item) => item.node === entry.target);
+          if (!match) continue;
+          if (!best || entry.intersectionRatio > best.ratio) {
+            best = { section: match.section, ratio: entry.intersectionRatio };
+          }
+        }
+
+        if (best) {
+          setActiveSection(best.section);
+        }
+      },
+      {
+        root: null,
+        threshold: [0.2, 0.35, 0.5, 0.7],
+        rootMargin: "-24% 0px -52% 0px",
+      }
+    );
+
+    for (const item of observed) {
+      observer.observe(item.node);
+    }
+
+    return () => observer.disconnect();
+  }, [loading]);
 
   function resetTaskForm() {
     setTaskInput("");
@@ -322,6 +453,25 @@ export default function App() {
     setNoteInput("");
     setNoteAuthor("Oba");
     setEditingNoteId(null);
+  }
+
+  function resetAllFilters() {
+    setTaskOwnerFilter("VĹˇe");
+    setTaskStatusFilter("VĹˇe");
+    setTaskPriorityFilter("VĹˇe");
+    setTaskSort("deadline");
+    setTaskSearch("");
+
+    setBudgetCategoryFilter("VĹˇe");
+    setBudgetPaymentFilter("VĹˇe");
+    setBudgetOwnerFilter("VĹˇe");
+    setBudgetSort("due_date");
+    setBudgetSearch("");
+
+    setGuestSideFilter("VĹˇe");
+    setGuestRsvpFilter("VĹˇe");
+    setGuestSearch("");
+    showToast("Filtry vycisteny");
   }
 
   function exportData() {
@@ -1046,15 +1196,62 @@ export default function App() {
       }));
   }, [budgetItems]);
 
+  const taskCompletionRate =
+    taskStats.total > 0
+      ? Math.round((taskStats.completed / taskStats.total) * 100)
+      : 0;
+  const lastSyncLabel = lastLoadedAt
+    ? lastLoadedAt.toLocaleTimeString("cs-CZ", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "--:--";
+
   if (loading) {
     return <div style={loadingStyle}>NaÄŤĂ­tĂˇm data ze Supabaseâ€¦</div>;
   }
 
   return (
     <div style={containerStyle}>
-      <h1 style={titleStyle}>đź’Ť Svatba planner</h1>
+      <header style={heroStyle} className="wedding-reveal">
+        <h1 style={titleStyle}>Svatba planner</h1>
+        <p style={heroSubTitleStyle}>
+          Jedno misto pro ukoly, rozpocet, hosty i poznamky. Bez prihlaseni, jen
+          rychle planovani.
+        </p>
+        <div style={heroStatsGridStyle}>
+          <div style={heroStatCardStyle}>
+            <p style={heroStatLabelStyle}>Postup checklistu</p>
+            <p style={heroStatValueStyle}>{taskCompletionRate} %</p>
+          </div>
+          <div style={heroStatCardStyle}>
+            <p style={heroStatLabelStyle}>Hostu potvrzeno</p>
+            <p style={heroStatValueStyle}>{guestStats.confirmed}</p>
+          </div>
+          <div style={heroStatCardStyle}>
+            <p style={heroStatLabelStyle}>Zbyva doplatit</p>
+            <p style={heroStatValueStyle}>{budgetStats.totalRemaining} Kc</p>
+          </div>
+          <div style={heroStatCardStyle}>
+            <p style={heroStatLabelStyle}>Posledni sync</p>
+            <p style={heroStatValueStyle}>{lastSyncLabel}</p>
+          </div>
+        </div>
+      </header>
 
-      <div style={topBarStyle}>
+      <div style={quickNavStyle} className="wedding-reveal">
+        {sectionOrder.map((section) => (
+          <button
+            key={section}
+            onClick={() => scrollToSection(section)}
+            style={quickNavButtonStyle(activeSection === section)}
+          >
+            {sectionLabels[section]}
+          </button>
+        ))}
+      </div>
+
+      <div style={topBarStyle} className="wedding-reveal">
         <button
           onClick={loadAll}
           style={primaryButtonStyle}
@@ -1079,6 +1276,30 @@ export default function App() {
           Import dat
         </button>
 
+        <button
+          onClick={resetAllFilters}
+          style={secondaryButtonStyle}
+          disabled={saving}
+        >
+          Vycistit filtry
+        </button>
+
+        <button
+          onClick={() => setAllSections(true)}
+          style={secondaryButtonStyle}
+          disabled={saving}
+        >
+          Rozbalit vse
+        </button>
+
+        <button
+          onClick={() => setAllSections(false)}
+          style={secondaryButtonStyle}
+          disabled={saving}
+        >
+          Sbalit vse
+        </button>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -1087,172 +1308,184 @@ export default function App() {
           onChange={importData}
         />
 
-        <span style={statusStyle}>{saving ? "UklĂˇdĂˇmâ€¦" : "PĹ™ipraveno"}</span>
+        <span style={statusStyle}>
+          {saving ? "Ukladam..." : `Pripraveno · sync ${lastSyncLabel}`}
+        </span>
       </div>
 
       {error && <div style={errorStyle}>{error}</div>}
       {toast && <div style={toastStyle}>{toast}</div>}
 
-      <DashboardSection
-        isOpen={sectionsOpen.dashboard}
-        onToggle={() => toggleSection("dashboard")}
-        taskStats={taskStats}
-        budgetStats={budgetStats}
-        guestStats={guestStats}
-        recentItems={recentItems}
-        nextTasks={nextTasks}
-        nextBudgetItems={nextBudgetItems}
-      />
+      <div ref={dashboardRef} className="wedding-section-anchor wedding-reveal">
+        <DashboardSection
+          isOpen={sectionsOpen.dashboard}
+          onToggle={() => toggleSection("dashboard")}
+          taskStats={taskStats}
+          budgetStats={budgetStats}
+          guestStats={guestStats}
+          recentItems={recentItems}
+          nextTasks={nextTasks}
+          nextBudgetItems={nextBudgetItems}
+        />
+      </div>
 
-      <TasksSection
-        isOpen={sectionsOpen.tasks}
-        onToggle={() => toggleSection("tasks")}
-        people={people}
-        taskStatuses={taskStatuses}
-        taskPriorities={taskPriorities}
-        taskStats={taskStats}
-        taskInput={taskInput}
-        setTaskInput={setTaskInput}
-        taskOwner={taskOwner}
-        setTaskOwner={setTaskOwner}
-        taskStatus={taskStatus}
-        setTaskStatus={setTaskStatus}
-        taskPriority={taskPriority}
-        setTaskPriority={setTaskPriority}
-        taskUpdatedBy={taskUpdatedBy}
-        setTaskUpdatedBy={setTaskUpdatedBy}
-        taskDeadline={taskDeadline}
-        setTaskDeadline={setTaskDeadline}
-        taskNote={taskNote}
-        setTaskNote={setTaskNote}
-        editingTaskId={editingTaskId}
-        saveTask={saveTask}
-        resetTaskForm={resetTaskForm}
-        saving={saving}
-        taskOwnerFilter={taskOwnerFilter}
-        setTaskOwnerFilter={setTaskOwnerFilter}
-        taskStatusFilter={taskStatusFilter}
-        setTaskStatusFilter={setTaskStatusFilter}
-        taskPriorityFilter={taskPriorityFilter}
-        setTaskPriorityFilter={setTaskPriorityFilter}
-        taskSort={taskSort}
-        setTaskSort={setTaskSort}
-        taskSearch={taskSearch}
-        setTaskSearch={setTaskSearch}
-        filteredTasks={filteredTasks}
-        toggleTask={toggleTask}
-        startEditTask={startEditTask}
-        deleteTask={deleteTask}
-      />
+      <div ref={tasksRef} className="wedding-section-anchor wedding-reveal">
+        <TasksSection
+          isOpen={sectionsOpen.tasks}
+          onToggle={() => toggleSection("tasks")}
+          people={people}
+          taskStatuses={taskStatuses}
+          taskPriorities={taskPriorities}
+          taskStats={taskStats}
+          taskInput={taskInput}
+          setTaskInput={setTaskInput}
+          taskOwner={taskOwner}
+          setTaskOwner={setTaskOwner}
+          taskStatus={taskStatus}
+          setTaskStatus={setTaskStatus}
+          taskPriority={taskPriority}
+          setTaskPriority={setTaskPriority}
+          taskUpdatedBy={taskUpdatedBy}
+          setTaskUpdatedBy={setTaskUpdatedBy}
+          taskDeadline={taskDeadline}
+          setTaskDeadline={setTaskDeadline}
+          taskNote={taskNote}
+          setTaskNote={setTaskNote}
+          editingTaskId={editingTaskId}
+          saveTask={saveTask}
+          resetTaskForm={resetTaskForm}
+          saving={saving}
+          taskOwnerFilter={taskOwnerFilter}
+          setTaskOwnerFilter={setTaskOwnerFilter}
+          taskStatusFilter={taskStatusFilter}
+          setTaskStatusFilter={setTaskStatusFilter}
+          taskPriorityFilter={taskPriorityFilter}
+          setTaskPriorityFilter={setTaskPriorityFilter}
+          taskSort={taskSort}
+          setTaskSort={setTaskSort}
+          taskSearch={taskSearch}
+          setTaskSearch={setTaskSearch}
+          filteredTasks={filteredTasks}
+          toggleTask={toggleTask}
+          startEditTask={startEditTask}
+          deleteTask={deleteTask}
+        />
+      </div>
 
-      <BudgetSection
-        isOpen={sectionsOpen.budget}
-        onToggle={() => toggleSection("budget")}
-        categories={categories}
-        paymentStatuses={paymentStatuses}
-        people={people}
-        budgetStats={budgetStats}
-        category={category}
-        setCategory={setCategory}
-        budgetName={budgetName}
-        setBudgetName={setBudgetName}
-        budgetOwner={budgetOwner}
-        setBudgetOwner={setBudgetOwner}
-        vendor={vendor}
-        setVendor={setVendor}
-        dueDate={dueDate}
-        setDueDate={setDueDate}
-        paymentStatus={paymentStatus}
-        setPaymentStatus={setPaymentStatus}
-        planned={planned}
-        setPlanned={setPlanned}
-        actual={actual}
-        setActual={setActual}
-        deposit={deposit}
-        setDeposit={setDeposit}
-        fullyPaid={fullyPaid}
-        setFullyPaid={setFullyPaid}
-        budgetUpdatedBy={budgetUpdatedBy}
-        setBudgetUpdatedBy={setBudgetUpdatedBy}
-        budgetNote={budgetNote}
-        setBudgetNote={setBudgetNote}
-        editingBudgetId={editingBudgetId}
-        saveBudgetItem={saveBudgetItem}
-        resetBudgetForm={resetBudgetForm}
-        saving={saving}
-        budgetCategoryFilter={budgetCategoryFilter}
-        setBudgetCategoryFilter={setBudgetCategoryFilter}
-        budgetPaymentFilter={budgetPaymentFilter}
-        setBudgetPaymentFilter={setBudgetPaymentFilter}
-        budgetOwnerFilter={budgetOwnerFilter}
-        setBudgetOwnerFilter={setBudgetOwnerFilter}
-        budgetSort={budgetSort}
-        setBudgetSort={setBudgetSort}
-        budgetSearch={budgetSearch}
-        setBudgetSearch={setBudgetSearch}
-        filteredBudget={filteredBudget}
-        startEditBudgetItem={startEditBudgetItem}
-        deleteBudgetItem={deleteBudgetItem}
-        quickToggleBudgetPaid={quickToggleBudgetPaid}
-      />
+      <div ref={budgetRef} className="wedding-section-anchor wedding-reveal">
+        <BudgetSection
+          isOpen={sectionsOpen.budget}
+          onToggle={() => toggleSection("budget")}
+          categories={categories}
+          paymentStatuses={paymentStatuses}
+          people={people}
+          budgetStats={budgetStats}
+          category={category}
+          setCategory={setCategory}
+          budgetName={budgetName}
+          setBudgetName={setBudgetName}
+          budgetOwner={budgetOwner}
+          setBudgetOwner={setBudgetOwner}
+          vendor={vendor}
+          setVendor={setVendor}
+          dueDate={dueDate}
+          setDueDate={setDueDate}
+          paymentStatus={paymentStatus}
+          setPaymentStatus={setPaymentStatus}
+          planned={planned}
+          setPlanned={setPlanned}
+          actual={actual}
+          setActual={setActual}
+          deposit={deposit}
+          setDeposit={setDeposit}
+          fullyPaid={fullyPaid}
+          setFullyPaid={setFullyPaid}
+          budgetUpdatedBy={budgetUpdatedBy}
+          setBudgetUpdatedBy={setBudgetUpdatedBy}
+          budgetNote={budgetNote}
+          setBudgetNote={setBudgetNote}
+          editingBudgetId={editingBudgetId}
+          saveBudgetItem={saveBudgetItem}
+          resetBudgetForm={resetBudgetForm}
+          saving={saving}
+          budgetCategoryFilter={budgetCategoryFilter}
+          setBudgetCategoryFilter={setBudgetCategoryFilter}
+          budgetPaymentFilter={budgetPaymentFilter}
+          setBudgetPaymentFilter={setBudgetPaymentFilter}
+          budgetOwnerFilter={budgetOwnerFilter}
+          setBudgetOwnerFilter={setBudgetOwnerFilter}
+          budgetSort={budgetSort}
+          setBudgetSort={setBudgetSort}
+          budgetSearch={budgetSearch}
+          setBudgetSearch={setBudgetSearch}
+          filteredBudget={filteredBudget}
+          startEditBudgetItem={startEditBudgetItem}
+          deleteBudgetItem={deleteBudgetItem}
+          quickToggleBudgetPaid={quickToggleBudgetPaid}
+        />
+      </div>
 
-      <GuestsSection
-        isOpen={sectionsOpen.guests}
-        onToggle={() => toggleSection("guests")}
-        guestSides={guestSides}
-        rsvpStatuses={rsvpStatuses}
-        people={people}
-        guestStats={guestStats}
-        guestName={guestName}
-        setGuestName={setGuestName}
-        guestSide={guestSide}
-        setGuestSide={setGuestSide}
-        guestRsvp={guestRsvp}
-        setGuestRsvp={setGuestRsvp}
-        guestCount={guestCount}
-        setGuestCount={setGuestCount}
-        guestAccommodation={guestAccommodation}
-        setGuestAccommodation={setGuestAccommodation}
-        guestChild={guestChild}
-        setGuestChild={setGuestChild}
-        guestUpdatedBy={guestUpdatedBy}
-        setGuestUpdatedBy={setGuestUpdatedBy}
-        guestNote={guestNote}
-        setGuestNote={setGuestNote}
-        editingGuestId={editingGuestId}
-        saveGuest={saveGuest}
-        resetGuestForm={resetGuestForm}
-        saving={saving}
-        guestSideFilter={guestSideFilter}
-        setGuestSideFilter={setGuestSideFilter}
-        guestRsvpFilter={guestRsvpFilter}
-        setGuestRsvpFilter={setGuestRsvpFilter}
-        guestSearch={guestSearch}
-        setGuestSearch={setGuestSearch}
-        filteredGuests={filteredGuests}
-        toggleGuest={toggleGuest}
-        startEditGuest={startEditGuest}
-        deleteGuest={deleteGuest}
-        quickToggleGuestAccommodation={quickToggleGuestAccommodation}
-        quickToggleGuestChild={quickToggleGuestChild}
-      />
+      <div ref={guestsRef} className="wedding-section-anchor wedding-reveal">
+        <GuestsSection
+          isOpen={sectionsOpen.guests}
+          onToggle={() => toggleSection("guests")}
+          guestSides={guestSides}
+          rsvpStatuses={rsvpStatuses}
+          people={people}
+          guestStats={guestStats}
+          guestName={guestName}
+          setGuestName={setGuestName}
+          guestSide={guestSide}
+          setGuestSide={setGuestSide}
+          guestRsvp={guestRsvp}
+          setGuestRsvp={setGuestRsvp}
+          guestCount={guestCount}
+          setGuestCount={setGuestCount}
+          guestAccommodation={guestAccommodation}
+          setGuestAccommodation={setGuestAccommodation}
+          guestChild={guestChild}
+          setGuestChild={setGuestChild}
+          guestUpdatedBy={guestUpdatedBy}
+          setGuestUpdatedBy={setGuestUpdatedBy}
+          guestNote={guestNote}
+          setGuestNote={setGuestNote}
+          editingGuestId={editingGuestId}
+          saveGuest={saveGuest}
+          resetGuestForm={resetGuestForm}
+          saving={saving}
+          guestSideFilter={guestSideFilter}
+          setGuestSideFilter={setGuestSideFilter}
+          guestRsvpFilter={guestRsvpFilter}
+          setGuestRsvpFilter={setGuestRsvpFilter}
+          guestSearch={guestSearch}
+          setGuestSearch={setGuestSearch}
+          filteredGuests={filteredGuests}
+          toggleGuest={toggleGuest}
+          startEditGuest={startEditGuest}
+          deleteGuest={deleteGuest}
+          quickToggleGuestAccommodation={quickToggleGuestAccommodation}
+          quickToggleGuestChild={quickToggleGuestChild}
+        />
+      </div>
 
-      <NotesSection
-        isOpen={sectionsOpen.notes}
-        onToggle={() => toggleSection("notes")}
-        people={people}
-        noteInput={noteInput}
-        setNoteInput={setNoteInput}
-        noteAuthor={noteAuthor}
-        setNoteAuthor={setNoteAuthor}
-        editingNoteId={editingNoteId}
-        saveNote={saveNote}
-        resetNoteForm={resetNoteForm}
-        saving={saving}
-        notes={notes}
-        startEditNote={startEditNote}
-        deleteNote={deleteNote}
-      />
+      <div ref={notesRef} className="wedding-section-anchor wedding-reveal">
+        <NotesSection
+          isOpen={sectionsOpen.notes}
+          onToggle={() => toggleSection("notes")}
+          people={people}
+          noteInput={noteInput}
+          setNoteInput={setNoteInput}
+          noteAuthor={noteAuthor}
+          setNoteAuthor={setNoteAuthor}
+          editingNoteId={editingNoteId}
+          saveNote={saveNote}
+          resetNoteForm={resetNoteForm}
+          saving={saving}
+          notes={notes}
+          startEditNote={startEditNote}
+          deleteNote={deleteNote}
+        />
+      </div>
     </div>
   );
 }
