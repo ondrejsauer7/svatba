@@ -116,6 +116,13 @@ export default function GuestsSection(props: Props) {
     quickToggleGuestAccommodation,
     quickToggleGuestChild,
   } = props;
+  const editFormRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (editingGuestId && isOpen) {
+      editFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [editingGuestId, isOpen]);
 
   return (
     <section style={sectionStyle}>
@@ -151,7 +158,7 @@ export default function GuestsSection(props: Props) {
             <div style={statBoxStyle}>Děti: {guestStats.children}</div>
           </div>
 
-          <div style={formStackStyle}>
+          <div ref={editFormRef} style={formStackStyle}>
             <input
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}

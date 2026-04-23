@@ -53,6 +53,13 @@ export default function NotesSection(props: Props) {
     startEditNote,
     deleteNote,
   } = props;
+  const editFormRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (editingNoteId && isOpen) {
+      editFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [editingNoteId, isOpen]);
 
   return (
     <section style={sectionStyle}>
@@ -78,7 +85,7 @@ export default function NotesSection(props: Props) {
 
       {isOpen && (
         <>
-          <div style={formStackStyle}>
+          <div ref={editFormRef} style={formStackStyle}>
             <textarea
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}

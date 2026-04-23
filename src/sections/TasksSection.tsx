@@ -143,6 +143,13 @@ export default function TasksSection(props: Props) {
   } = props;
 
   const [showCompleted, setShowCompleted] = React.useState(false);
+  const editFormRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (editingTaskId && isOpen) {
+      editFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [editingTaskId, isOpen]);
 
   const visibleTasks = showCompleted
     ? filteredTasks
@@ -263,7 +270,7 @@ export default function TasksSection(props: Props) {
             <div style={statBoxStyle}>Čeká: {taskStats.waiting}</div>
           </div>
 
-          <div style={formStackStyle}>
+          <div ref={editFormRef} style={formStackStyle}>
             <input
               value={taskInput}
               onChange={(e) => setTaskInput(e.target.value)}

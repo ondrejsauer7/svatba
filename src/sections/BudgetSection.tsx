@@ -190,6 +190,13 @@ export default function BudgetSection(props: Props) {
     budgetStats.totalActual > 0
       ? Math.round((budgetStats.totalPaid / budgetStats.totalActual) * 100)
       : 0;
+  const editFormRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (editingBudgetId && isOpen) {
+      editFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [editingBudgetId, isOpen]);
 
   return (
     <section style={sectionStyle}>
@@ -312,7 +319,7 @@ export default function BudgetSection(props: Props) {
             )}
           </div>
 
-          <div style={formStackStyle}>
+          <div ref={editFormRef} style={formStackStyle}>
             <select value={category} onChange={(e) => setCategory(e.target.value as BudgetCategory)} style={inputStyle}>
               {categories.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>

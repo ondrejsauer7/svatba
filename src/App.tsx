@@ -482,7 +482,6 @@ export default function App() {
     setTaskPriority(task.priority || "Střední");
     setTaskUpdatedBy((task.updated_by as Person) || "Oba");
     setEditingTaskId(task.id);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function saveBudgetItem() {
@@ -589,7 +588,6 @@ export default function App() {
     setBudgetNote(item.note || "");
     setBudgetUpdatedBy((item.updated_by as Person) || "Oba");
     setEditingBudgetId(item.id);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function quickToggleBudgetPaid(item: BudgetItem) {
@@ -760,7 +758,6 @@ export default function App() {
     setGuestChild(Boolean(guest.child));
     setGuestUpdatedBy((guest.updated_by as Person) || "Oba");
     setEditingGuestId(guest.id);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function saveNote() {
@@ -810,7 +807,6 @@ export default function App() {
     setNoteInput(note.text);
     setNoteAuthor(note.author || "Oba");
     setEditingNoteId(note.id);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function deleteNote(id: string) {
