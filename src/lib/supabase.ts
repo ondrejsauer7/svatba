@@ -1,4 +1,4 @@
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+﻿export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 
 function getJwtRoleFromKey(key: string) {
@@ -16,20 +16,27 @@ function getJwtRoleFromKey(key: string) {
   }
 }
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  throw new Error("Chybí VITE_SUPABASE_URL nebo VITE_SUPABASE_KEY");
-}
+function getSupabaseConfigError() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return "Chybí VITE_SUPABASE_URL nebo VITE_SUPABASE_KEY";
+  }
 
-if (getJwtRoleFromKey(SUPABASE_KEY) === "service_role") {
-  throw new Error(
-    "VITE_SUPABASE_KEY nesmi byt service_role. Pouzij anon/public klic a RLS."
-  );
+  if (getJwtRoleFromKey(SUPABASE_KEY) === "service_role") {
+    return "VITE_SUPABASE_KEY nesmí být service_role. Použij anon/public klíč a RLS.";
+  }
+
+  return "";
 }
 
 export async function supabaseRequest(
   path: string,
   options: RequestInit = {}
 ) {
+  const configError = getSupabaseConfigError();
+  if (configError) {
+    throw new Error(configError);
+  }
+
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {

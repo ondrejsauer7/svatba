@@ -121,6 +121,14 @@ export default function GuestsSection(props: Props) {
   const [showSaved, setShowSaved] = React.useState(false);
   const editFormRef = React.useRef<HTMLDivElement | null>(null);
 
+  function safeSmoothScrollTo(top: number) {
+    try {
+      window.scrollTo({ top, behavior: "smooth" });
+    } catch {
+      window.scrollTo(0, top);
+    }
+  }
+
   React.useEffect(() => {
     if (!editingGuestId || !isOpen || !editFormRef.current) return;
 
@@ -128,7 +136,7 @@ export default function GuestsSection(props: Props) {
       const node = editFormRef.current;
       if (!node) return;
       const top = window.scrollY + node.getBoundingClientRect().top - 20;
-      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      safeSmoothScrollTo(Math.max(0, top));
     };
 
     const rafId = window.requestAnimationFrame(scrollToForm);

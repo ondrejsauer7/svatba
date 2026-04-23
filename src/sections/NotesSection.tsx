@@ -1,5 +1,6 @@
 import React from "react";
-import type { Guest, GuestSide, Person, RsvpStatus } from "../types";
+import type { Note, Person } from "../types";
+import { formatDate } from "../lib/utils";
 import {
   badgeRowStyle,
   badgeStyle,
@@ -7,128 +8,72 @@ import {
   cardListStyle,
   cardStyle,
   cardTitleStyle,
-  chipStyle,
-  chipsWrapStyle,
   dangerButtonStyle,
   emptyStyle,
-  filterCardStyle,
-  filterLabelStyle,
-  filterTitleStyle,
   formStackStyle,
-  inputStyle,
   primaryButtonStyle,
   secondaryButtonStyle,
   sectionStyle,
-  statBoxStyle,
-  statsWrapStyle,
+  textareaStyle,
+  inputStyle,
   metaGridStyle,
-  checkboxLineStyle,
 } from "../ui";
-import { formatDate } from "../lib/utils";
 
 type Props = {
   isOpen: boolean;
   onToggle: () => void;
-  guestSides: GuestSide[];
-  rsvpStatuses: RsvpStatus[];
   people: Person[];
-  guestStats: {
-    total: number;
-    confirmed: number;
-    pending: number;
-    declined: number;
-    totalPeople: number;
-    sleeping: number;
-    children: number;
-  };
-  guestName: string;
-  setGuestName: (v: string) => void;
-  guestSide: GuestSide;
-  setGuestSide: (v: GuestSide) => void;
-  guestRsvp: RsvpStatus;
-  setGuestRsvp: (v: RsvpStatus) => void;
-  guestCount: string;
-  setGuestCount: (v: string) => void;
-  guestAccommodation: boolean;
-  setGuestAccommodation: (v: boolean) => void;
-  guestChild: boolean;
-  setGuestChild: (v: boolean) => void;
-  guestUpdatedBy: Person;
-  setGuestUpdatedBy: (v: Person) => void;
-  guestNote: string;
-  setGuestNote: (v: string) => void;
-  editingGuestId: string | null;
+  noteInput: string;
+  setNoteInput: (v: string) => void;
+  noteAuthor: Person;
+  setNoteAuthor: (v: Person) => void;
+  editingNoteId: string | null;
   lastSavedAt: number | null;
-  saveGuest: () => void;
-  resetGuestForm: () => void;
+  saveNote: () => void;
+  resetNoteForm: () => void;
   saving: boolean;
-  guestSideFilter: GuestSide | "Vše";
-  setGuestSideFilter: (v: GuestSide | "Vše") => void;
-  guestRsvpFilter: RsvpStatus | "Vše";
-  setGuestRsvpFilter: (v: RsvpStatus | "Vše") => void;
-  guestSearch: string;
-  setGuestSearch: (v: string) => void;
-  filteredGuests: Guest[];
-  toggleGuest: (guest: Guest) => void;
-  startEditGuest: (guest: Guest) => void;
-  deleteGuest: (id: string) => void;
-  quickToggleGuestAccommodation: (guest: Guest) => void;
-  quickToggleGuestChild: (guest: Guest) => void;
+  notes: Note[];
+  startEditNote: (note: Note) => void;
+  deleteNote: (id: string) => void;
 };
 
-export default function GuestsSection(props: Props) {
+export default function NotesSection(props: Props) {
   const {
     isOpen,
     onToggle,
-    guestSides,
-    rsvpStatuses,
     people,
-    guestStats,
-    guestName,
-    setGuestName,
-    guestSide,
-    setGuestSide,
-    guestRsvp,
-    setGuestRsvp,
-    guestCount,
-    setGuestCount,
-    guestAccommodation,
-    setGuestAccommodation,
-    guestChild,
-    setGuestChild,
-    guestUpdatedBy,
-    setGuestUpdatedBy,
-    guestNote,
-    setGuestNote,
-    editingGuestId,
+    noteInput,
+    setNoteInput,
+    noteAuthor,
+    setNoteAuthor,
+    editingNoteId,
     lastSavedAt,
-    saveGuest,
-    resetGuestForm,
+    saveNote,
+    resetNoteForm,
     saving,
-    guestSideFilter,
-    setGuestSideFilter,
-    guestRsvpFilter,
-    setGuestRsvpFilter,
-    guestSearch,
-    setGuestSearch,
-    filteredGuests,
-    toggleGuest,
-    startEditGuest,
-    deleteGuest,
-    quickToggleGuestAccommodation,
-    quickToggleGuestChild,
+    notes,
+    startEditNote,
+    deleteNote,
   } = props;
   const [showSaved, setShowSaved] = React.useState(false);
   const editFormRef = React.useRef<HTMLDivElement | null>(null);
 
+  function safeSmoothScrollTo(top: number) {
+    try {
+      window.scrollTo({ top, behavior: "smooth" });
+    } catch {
+      window.scrollTo(0, top);
+    }
+  }
+
   React.useEffect(() => {
-    if (!editingGuestId || !isOpen || !editFormRef.current) return;
+    if (!editingNoteId || !isOpen || !editFormRef.current) return;
 
     const scrollToForm = () => {
       const node = editFormRef.current;
       if (!node) return;
       const top = window.scrollY + node.getBoundingClientRect().top - 20;
-      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      safeSmoothScrollTo(Math.max(0, top));
     };
 
     const rafId = window.requestAnimationFrame(scrollToForm);
@@ -138,7 +83,7 @@ export default function GuestsSection(props: Props) {
       window.cancelAnimationFrame(rafId);
       window.clearTimeout(timeoutId);
     };
-  }, [editingGuestId, isOpen]);
+  }, [editingNoteId, isOpen]);
 
   React.useEffect(() => {
     if (!lastSavedAt) return;
@@ -147,16 +92,16 @@ export default function GuestsSection(props: Props) {
     return () => window.clearTimeout(timeoutId);
   }, [lastSavedAt]);
 
-  const canSaveGuest =
-    guestName.trim().length > 0 && (Number(guestCount) || 1) >= 1;
+  const canSaveNote = noteInput.trim().length > 0;
 
-  function handleGuestNameKeyDown(
-    event: React.KeyboardEvent<HTMLInputElement>
+  function handleNoteKeyDown(
+    event: React.KeyboardEvent<HTMLTextAreaElement>
   ) {
-    if (event.key !== "Enter") return;
+    const shouldSave = (event.ctrlKey || event.metaKey) && event.key === "Enter";
+    if (!shouldSave) return;
     event.preventDefault();
-    if (!saving && canSaveGuest) {
-      saveGuest();
+    if (!saving && canSaveNote) {
+      saveNote();
     }
   }
 
@@ -175,122 +120,72 @@ export default function GuestsSection(props: Props) {
           marginBottom: 12,
           cursor: "pointer",
           color: "#ffffff",
-          background: "linear-gradient(135deg, #16a34a 0%, #059669 100%)",
-          boxShadow: "0 8px 20px rgba(22, 163, 74, 0.25)",
+          background: "linear-gradient(135deg, #9333ea 0%, #7c3aed 100%)",
+          boxShadow: "0 8px 20px rgba(147, 51, 234, 0.25)",
         }}
       >
-        👨‍👩‍👧‍👦 Hosté {isOpen ? "▲" : "▼"}
+        📝 Poznámky / Nápady {isOpen ? "▲" : "▼"}
       </button>
 
       {isOpen && (
         <>
-          <div style={statsWrapStyle}>
-            <div style={statBoxStyle}>Hostů: {guestStats.total}</div>
-            <div style={statBoxStyle}>Potvrzeno: {guestStats.confirmed}</div>
-            <div style={statBoxStyle}>Bez odpovědi: {guestStats.pending}</div>
-            <div style={statBoxStyle}>Odmítlo: {guestStats.declined}</div>
-            <div style={statBoxStyle}>Lidí celkem: {guestStats.totalPeople}</div>
-            <div style={statBoxStyle}>Přespání: {guestStats.sleeping}</div>
-            <div style={statBoxStyle}>Děti: {guestStats.children}</div>
-          </div>
-
           <div ref={editFormRef} style={formStackStyle}>
-            {editingGuestId && (
+            {editingNoteId && (
               <div
                 style={{
-                  border: "1px solid #86efac",
-                  background: "#ecfdf5",
-                  color: "#166534",
+                  border: "1px solid #d8b4fe",
+                  background: "#faf5ff",
+                  color: "#6b21a8",
                   borderRadius: 12,
                   padding: "10px 12px",
                   fontWeight: 700,
                 }}
               >
-                Editační režim: upravuješ existujícího hosta.
+                Editační režim: upravuješ existující poznámku.
               </div>
             )}
-            <input
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              onKeyDown={handleGuestNameKeyDown}
-              aria-label="Jméno hosta"
-              placeholder="Jméno hosta"
-              style={inputStyle}
+            <textarea
+              value={noteInput}
+              onChange={(e) => setNoteInput(e.target.value)}
+              onKeyDown={handleNoteKeyDown}
+              aria-label="Text poznámky"
+              placeholder="Sem si pište nápady, co probrat, co dokoupit, co rozhodnout..."
+              style={textareaStyle}
             />
 
-            <select value={guestSide} onChange={(e) => setGuestSide(e.target.value as GuestSide)} aria-label="Strana hostů" style={inputStyle}>
-              {guestSides.map((side) => (
-                <option key={side} value={side}>Strana: {side}</option>
-              ))}
-            </select>
+            <div style={{ color: "#6b7280", fontSize: 13 }}>
+              Tip: Ctrl/Cmd + Enter uloží poznámku.
+            </div>
 
-            <select value={guestRsvp} onChange={(e) => setGuestRsvp(e.target.value as RsvpStatus)} aria-label="RSVP stav hosta" style={inputStyle}>
-              {rsvpStatuses.map((status) => (
-                <option key={status} value={status}>RSVP: {status}</option>
-              ))}
-            </select>
-
-            <input
-              type="number"
-              min="1"
-              step="1"
-              inputMode="numeric"
-              value={guestCount}
-              onChange={(e) => setGuestCount(e.target.value)}
-              aria-label="Počet osob"
-              placeholder="Počet osob"
+            <select
+              value={noteAuthor}
+              onChange={(e) => setNoteAuthor(e.target.value as Person)}
+              aria-label="Autor poznámky"
               style={inputStyle}
-            />
-
-            <label style={checkboxLineStyle}>
-              <input
-                type="checkbox"
-                checked={guestAccommodation}
-                onChange={(e) => setGuestAccommodation(e.target.checked)}
-                aria-label="Bude přespávat"
-              />
-              Bude přespávat
-            </label>
-
-            <label style={checkboxLineStyle}>
-              <input
-                type="checkbox"
-                checked={guestChild}
-                onChange={(e) => setGuestChild(e.target.checked)}
-                aria-label="Je dítě"
-              />
-              Je to dítě
-            </label>
-
-            <select value={guestUpdatedBy} onChange={(e) => setGuestUpdatedBy(e.target.value as Person)} aria-label="Kdo upravoval hosta" style={inputStyle}>
+            >
               {people.map((person) => (
-                <option key={person} value={person}>Update dělal: {person}</option>
+                <option key={person} value={person}>
+                  Autor: {person}
+                </option>
               ))}
             </select>
-
-            <input
-              value={guestNote}
-              onChange={(e) => setGuestNote(e.target.value)}
-              aria-label="Poznámka k hostovi"
-              placeholder="Komentář / poznámka"
-              style={inputStyle}
-            />
 
             <div style={buttonRowStyle}>
               <button
-                onClick={saveGuest}
+                onClick={saveNote}
                 style={primaryButtonStyle}
-                disabled={saving || !canSaveGuest}
+                disabled={saving || !canSaveNote}
               >
                 {saving
                   ? "Ukládám..."
-                  : editingGuestId
+                  : editingNoteId
                   ? "Uložit změny"
-                  : "Přidat hosta"}
+                  : "Přidat poznámku"}
               </button>
-              {editingGuestId && (
+
+              {editingNoteId && (
                 <button
-                  onClick={resetGuestForm}
+                  onClick={resetNoteForm}
                   style={secondaryButtonStyle}
                   disabled={saving}
                 >
@@ -305,86 +200,37 @@ export default function GuestsSection(props: Props) {
             )}
           </div>
 
-          <div style={filterCardStyle}>
-            <div style={filterTitleStyle}>Filtry</div>
-
-            <input
-              value={guestSearch}
-              onChange={(e) => setGuestSearch(e.target.value)}
-              aria-label="Hledat hosta"
-              placeholder="Hledat hosta nebo poznámku"
-              style={inputStyle}
-            />
-
-            <div style={chipsWrapStyle}>
-              <span style={filterLabelStyle}>Strana:</span>
-              <button style={chipStyle(guestSideFilter === "Vše")} onClick={() => setGuestSideFilter("Vše")}>
-                Vše
-              </button>
-              {guestSides.map((side) => (
-                <button
-                  key={side}
-                  style={chipStyle(guestSideFilter === side)}
-                  onClick={() => setGuestSideFilter(side)}
-                >
-                  {side}
-                </button>
-              ))}
-            </div>
-
-            <div style={chipsWrapStyle}>
-              <span style={filterLabelStyle}>RSVP:</span>
-              <button style={chipStyle(guestRsvpFilter === "Vše")} onClick={() => setGuestRsvpFilter("Vše")}>
-                Vše
-              </button>
-              {rsvpStatuses.map((status) => (
-                <button
-                  key={status}
-                  style={chipStyle(guestRsvpFilter === status)}
-                  onClick={() => setGuestRsvpFilter(status)}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div style={cardListStyle}>
-            {filteredGuests.length === 0 && <div style={emptyStyle}>Žádní hosté pro aktuální filtr.</div>}
+            {notes.length === 0 && (
+              <div style={emptyStyle}>Zatím žádné poznámky.</div>
+            )}
 
-            {filteredGuests.map((guest) => (
-              <div key={guest.id} style={cardStyle}>
+            {notes.map((note) => (
+              <div key={note.id} style={cardStyle}>
                 <div style={badgeRowStyle}>
-                  <span style={badgeStyle}>Rodina</span>
-                  <span style={badgeStyle}>{guest.side || "Společní"}</span>
-                  <span style={badgeStyle}>{guest.rsvp_status || "Bez odpovědi"}</span>
+                  <span style={badgeStyle}>{note.author}</span>
                 </div>
 
-                <div style={cardTitleStyle}>{guest.name}</div>
+                <div style={cardTitleStyle}>Poznámka</div>
 
                 <div style={metaGridStyle}>
-                  <div>Počet osob: <strong>{guest.guest_count || 1}</strong></div>
-                  <div>Přespání: <strong>{guest.accommodation ? "Ano" : "Ne"}</strong></div>
-                  <div>Dítě: <strong>{guest.child ? "Ano" : "Ne"}</strong></div>
-                  <div>Komentář: <strong>{guest.note || "-"}</strong></div>
-                  <div>Poslední update: <strong>{guest.updated_by || "-"}</strong></div>
-                  <div>Upraveno: <strong>{formatDate(guest.updated_at)}</strong></div>
+                  <div>{note.text}</div>
+                  <div>
+                    Upraveno: <strong>{formatDate(note.updated_at)}</strong>
+                  </div>
                 </div>
 
                 <div style={buttonRowStyle}>
-                  <button onClick={() => toggleGuest(guest)} style={secondaryButtonStyle}>
-                    {guest.confirmed ? "Zrušit potvrzení" : "Potvrdit"}
-                  </button>
-                  <button onClick={() => quickToggleGuestAccommodation(guest)} style={secondaryButtonStyle}>
-                    {guest.accommodation ? "Zrušit přespání" : "Nastavit přespání"}
-                  </button>
-                  <button onClick={() => quickToggleGuestChild(guest)} style={secondaryButtonStyle}>
-                    {guest.child ? "Není dítě" : "Je dítě"}
-                  </button>
-                  <button onClick={() => startEditGuest(guest)} style={secondaryButtonStyle}>
+                  <button
+                    onClick={() => startEditNote(note)}
+                    style={secondaryButtonStyle}
+                  >
                     Upravit
                   </button>
-                  <button onClick={() => deleteGuest(guest.id)} style={dangerButtonStyle}>
+                  <button
+                    onClick={() => deleteNote(note.id)}
+                    style={dangerButtonStyle}
+                  >
                     Smazat
                   </button>
                 </div>
@@ -396,4 +242,5 @@ export default function GuestsSection(props: Props) {
     </section>
   );
 }
+
 

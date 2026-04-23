@@ -437,6 +437,14 @@ export default function App() {
     return notesRef;
   }
 
+  function safeScrollIntoViewStart(target: HTMLElement) {
+    try {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch {
+      target.scrollIntoView();
+    }
+  }
+
   function scrollToSection(section: SectionKey) {
     setActiveSection(section);
     setSectionsOpen((prev) => ({ ...prev, [section]: true }));
@@ -444,7 +452,7 @@ export default function App() {
     window.requestAnimationFrame(() => {
       const target = getSectionRef(section).current;
       if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      safeScrollIntoViewStart(target);
     });
   }
 
@@ -465,6 +473,8 @@ export default function App() {
 
   useEffect(() => {
     if (loading) return;
+    if (typeof window === "undefined") return;
+    if (typeof window.IntersectionObserver !== "function") return;
 
     const observed = sectionOrder
       .map((section) => ({ section, node: getSectionRef(section).current }))
