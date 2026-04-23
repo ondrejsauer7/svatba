@@ -164,6 +164,16 @@ export default function TasksSection(props: Props) {
     };
   }, [editingTaskId, isOpen]);
 
+  const canSaveTask = taskInput.trim().length > 0;
+
+  function handleTaskInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (!saving && canSaveTask) {
+      saveTask();
+    }
+  }
+
   const visibleTasks = showCompleted
     ? filteredTasks
     : filteredTasks.filter((task) => task.status !== "Hotovo" && !task.done);
@@ -284,9 +294,24 @@ export default function TasksSection(props: Props) {
           </div>
 
           <div ref={editFormRef} style={formStackStyle}>
+            {editingTaskId && (
+              <div
+                style={{
+                  border: "1px solid #bfdbfe",
+                  background: "#eff6ff",
+                  color: "#1e3a8a",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  fontWeight: 700,
+                }}
+              >
+                Editacni rezim: upravujes existujici ukol.
+              </div>
+            )}
             <input
               value={taskInput}
               onChange={(e) => setTaskInput(e.target.value)}
+              onKeyDown={handleTaskInputKeyDown}
               placeholder="Např. zamluvit místo"
               style={inputStyle}
             />
@@ -357,13 +382,21 @@ export default function TasksSection(props: Props) {
               <button
                 onClick={saveTask}
                 style={primaryButtonStyle}
-                disabled={saving}
+                disabled={saving || !canSaveTask}
               >
-                {editingTaskId ? "Uložit" : "Přidat"}
+                {saving
+                  ? "Ukladam..."
+                  : editingTaskId
+                  ? "Ulozit zmeny"
+                  : "Pridat ukol"}
               </button>
 
               {editingTaskId && (
-                <button onClick={resetTaskForm} style={secondaryButtonStyle}>
+                <button
+                  onClick={resetTaskForm}
+                  style={secondaryButtonStyle}
+                  disabled={saving}
+                >
                   Zrušit
                 </button>
               )}

@@ -137,6 +137,19 @@ export default function GuestsSection(props: Props) {
     };
   }, [editingGuestId, isOpen]);
 
+  const canSaveGuest =
+    guestName.trim().length > 0 && (Number(guestCount) || 1) >= 1;
+
+  function handleGuestNameKeyDown(
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (!saving && canSaveGuest) {
+      saveGuest();
+    }
+  }
+
   return (
     <section style={sectionStyle}>
       <button
@@ -172,9 +185,24 @@ export default function GuestsSection(props: Props) {
           </div>
 
           <div ref={editFormRef} style={formStackStyle}>
+            {editingGuestId && (
+              <div
+                style={{
+                  border: "1px solid #86efac",
+                  background: "#ecfdf5",
+                  color: "#166534",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  fontWeight: 700,
+                }}
+              >
+                Editacni rezim: upravujes existujiciho hosta.
+              </div>
+            )}
             <input
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
+              onKeyDown={handleGuestNameKeyDown}
               placeholder="Jméno hosta"
               style={inputStyle}
             />
@@ -194,6 +222,8 @@ export default function GuestsSection(props: Props) {
             <input
               type="number"
               min="1"
+              step="1"
+              inputMode="numeric"
               value={guestCount}
               onChange={(e) => setGuestCount(e.target.value)}
               placeholder="Počet osob"
@@ -232,11 +262,23 @@ export default function GuestsSection(props: Props) {
             />
 
             <div style={buttonRowStyle}>
-              <button onClick={saveGuest} style={primaryButtonStyle} disabled={saving}>
-                {editingGuestId ? "Uložit" : "Přidat"}
+              <button
+                onClick={saveGuest}
+                style={primaryButtonStyle}
+                disabled={saving || !canSaveGuest}
+              >
+                {saving
+                  ? "Ukladam..."
+                  : editingGuestId
+                  ? "Ulozit zmeny"
+                  : "Pridat hosta"}
               </button>
               {editingGuestId && (
-                <button onClick={resetGuestForm} style={secondaryButtonStyle}>
+                <button
+                  onClick={resetGuestForm}
+                  style={secondaryButtonStyle}
+                  disabled={saving}
+                >
                   Zrušit
                 </button>
               )}

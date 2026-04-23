@@ -211,6 +211,18 @@ export default function BudgetSection(props: Props) {
     };
   }, [editingBudgetId, isOpen]);
 
+  const canSaveBudget = budgetName.trim().length > 0;
+
+  function handleBudgetNameKeyDown(
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (!saving && canSaveBudget) {
+      saveBudgetItem();
+    }
+  }
+
   return (
     <section style={sectionStyle}>
       <button
@@ -333,6 +345,20 @@ export default function BudgetSection(props: Props) {
           </div>
 
           <div ref={editFormRef} style={formStackStyle}>
+            {editingBudgetId && (
+              <div
+                style={{
+                  border: "1px solid #fdba74",
+                  background: "#fff7ed",
+                  color: "#9a3412",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  fontWeight: 700,
+                }}
+              >
+                Editacni rezim: upravujes existujici polozku rozpoctu.
+              </div>
+            )}
             <select value={category} onChange={(e) => setCategory(e.target.value as BudgetCategory)} style={inputStyle}>
               {categories.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
@@ -342,6 +368,7 @@ export default function BudgetSection(props: Props) {
             <input
               value={budgetName}
               onChange={(e) => setBudgetName(e.target.value)}
+              onKeyDown={handleBudgetNameKeyDown}
               placeholder="Položka"
               style={inputStyle}
             />
@@ -374,6 +401,9 @@ export default function BudgetSection(props: Props) {
 
             <input
               type="number"
+              min="0"
+              step="1"
+              inputMode="numeric"
               value={planned}
               onChange={(e) => setPlanned(e.target.value)}
               placeholder="Plánovaná cena"
@@ -382,6 +412,9 @@ export default function BudgetSection(props: Props) {
 
             <input
               type="number"
+              min="0"
+              step="1"
+              inputMode="numeric"
               value={actual}
               onChange={(e) => setActual(e.target.value)}
               placeholder="Skutečná cena"
@@ -390,6 +423,9 @@ export default function BudgetSection(props: Props) {
 
             <input
               type="number"
+              min="0"
+              step="1"
+              inputMode="numeric"
               value={deposit}
               onChange={(e) => setDeposit(e.target.value)}
               placeholder="Záloha"
@@ -419,11 +455,23 @@ export default function BudgetSection(props: Props) {
             />
 
             <div style={buttonRowStyle}>
-              <button onClick={saveBudgetItem} style={primaryButtonStyle} disabled={saving}>
-                {editingBudgetId ? "Uložit" : "Přidat"}
+              <button
+                onClick={saveBudgetItem}
+                style={primaryButtonStyle}
+                disabled={saving || !canSaveBudget}
+              >
+                {saving
+                  ? "Ukladam..."
+                  : editingBudgetId
+                  ? "Ulozit zmeny"
+                  : "Pridat polozku"}
               </button>
               {editingBudgetId && (
-                <button onClick={resetBudgetForm} style={secondaryButtonStyle}>
+                <button
+                  onClick={resetBudgetForm}
+                  style={secondaryButtonStyle}
+                  disabled={saving}
+                >
                   Zrušit
                 </button>
               )}

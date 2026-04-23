@@ -74,6 +74,19 @@ export default function NotesSection(props: Props) {
     };
   }, [editingNoteId, isOpen]);
 
+  const canSaveNote = noteInput.trim().length > 0;
+
+  function handleNoteKeyDown(
+    event: React.KeyboardEvent<HTMLTextAreaElement>
+  ) {
+    const shouldSave = (event.ctrlKey || event.metaKey) && event.key === "Enter";
+    if (!shouldSave) return;
+    event.preventDefault();
+    if (!saving && canSaveNote) {
+      saveNote();
+    }
+  }
+
   return (
     <section style={sectionStyle}>
       <button
@@ -99,12 +112,31 @@ export default function NotesSection(props: Props) {
       {isOpen && (
         <>
           <div ref={editFormRef} style={formStackStyle}>
+            {editingNoteId && (
+              <div
+                style={{
+                  border: "1px solid #d8b4fe",
+                  background: "#faf5ff",
+                  color: "#6b21a8",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  fontWeight: 700,
+                }}
+              >
+                Editacni rezim: upravujes existujici poznamku.
+              </div>
+            )}
             <textarea
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
+              onKeyDown={handleNoteKeyDown}
               placeholder="Sem si pište nápady, co probrat, co dokoupit, co rozhodnout..."
               style={textareaStyle}
             />
+
+            <div style={{ color: "#6b7280", fontSize: 13 }}>
+              Tip: Ctrl/Cmd + Enter ulozi poznamku.
+            </div>
 
             <select
               value={noteAuthor}
@@ -122,13 +154,21 @@ export default function NotesSection(props: Props) {
               <button
                 onClick={saveNote}
                 style={primaryButtonStyle}
-                disabled={saving}
+                disabled={saving || !canSaveNote}
               >
-                {editingNoteId ? "Uložit" : "Přidat poznámku"}
+                {saving
+                  ? "Ukladam..."
+                  : editingNoteId
+                  ? "Ulozit zmeny"
+                  : "Pridat poznamku"}
               </button>
 
               {editingNoteId && (
-                <button onClick={resetNoteForm} style={secondaryButtonStyle}>
+                <button
+                  onClick={resetNoteForm}
+                  style={secondaryButtonStyle}
+                  disabled={saving}
+                >
                   Zrušit
                 </button>
               )}
@@ -177,3 +217,4 @@ export default function NotesSection(props: Props) {
     </section>
   );
 }
+
