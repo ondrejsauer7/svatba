@@ -26,6 +26,23 @@ import {
   metaGridStyle,
 } from "../ui";
 
+function getTaskBucket(deadline: string | null) {
+  if (!deadline) return "no_deadline";
+
+  const today = new Date();
+  const target = new Date(deadline);
+
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+
+  const diffMs = target.getTime() - today.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 1) return "today";
+  if (diffDays <= 7) return "soon";
+  return "later";
+}
+
 type Props = {
   isOpen: boolean;
   onToggle: () => void;
@@ -110,6 +127,76 @@ export default function TasksSection(props: Props) {
     deleteTask,
   } = props;
 
+  const todayTasks = filteredTasks.filter(
+    (task) => getTaskBucket(task.deadline) === "today"
+  );
+
+  const soonTasks = filteredTasks.filter(
+    (task) => getTaskBucket(task.deadline) === "soon"
+  );
+
+  const laterTasks = filteredTasks.filter(
+    (task) => getTaskBucket(task.deadline) === "later"
+  );
+
+  const noDeadlineTasks = filteredTasks.filter(
+    (task) => getTaskBucket(task.deadline) === "no_deadline"
+  );
+
+  function renderTaskCard(task: Task) {
+    return (
+      <div
+        key={task.id}
+        style={{
+          ...cardStyle,
+          borderLeft:
+            task.status === "Hotovo"
+              ? "6px solid green"
+              : task.priority === "Vysoká"
+              ? "6px solid orange"
+              : task.deadline && new Date(task.deadline) < new Date()
+              ? "6px solid red"
+              : "6px solid transparent",
+        }}
+      >
+        <div style={badgeRowStyle}>
+          <span style={badgeStyle}>{task.owner}</span>
+          <span style={badgeStyle}>{task.status}</span>
+          <span style={badgeStyle}>{task.priority}</span>
+        </div>
+
+        <div style={cardTitleStyle}>{task.text}</div>
+
+        <div style={metaGridStyle}>
+          <div>Deadline: <strong>{formatDate(task.deadline)}</strong></div>
+          <div>Komentář: <strong>{task.note || "-"}</strong></div>
+          <div>Poslední update: <strong>{task.updated_by || "-"}</strong></div>
+          <div>Upraveno: <strong>{formatDate(task.updated_at)}</strong></div>
+        </div>
+
+        <div style={buttonRowStyle}>
+          <button onClick={() => toggleTask(task)} style={secondaryButtonStyle}>
+            {task.done || task.status === "Hotovo"
+              ? "Označit zpět"
+              : "Označit hotovo"}
+          </button>
+          <button
+            onClick={() => startEditTask(task)}
+            style={secondaryButtonStyle}
+          >
+            Upravit
+          </button>
+          <button
+            onClick={() => deleteTask(task.id)}
+            style={dangerButtonStyle}
+          >
+            Smazat
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section style={sectionStyle}>
       <button onClick={onToggle} style={sectionToggleStyle}>
@@ -126,26 +213,89 @@ export default function TasksSection(props: Props) {
           </div>
 
           <div style={formStackStyle}>
-            <input value={taskInput} onChange={(e) => setTaskInput(e.target.value)} placeholder="Např. zamluvit místo" style={inputStyle} />
-            <select value={taskOwner} onChange={(e) => setTaskOwner(e.target.value as Person)} style={inputStyle}>
-              {people.map((person) => <option key={person} value={person}>{person}</option>)}
+            <input
+              value={taskInput}
+              onChange={(e) => setTaskInput(e.target.value)}
+              placeholder="Např. zamluvit místo"
+              style={inputStyle}
+            />
+
+            <select
+              value={taskOwner}
+              onChange={(e) => setTaskOwner(e.target.value as Person)}
+              style={inputStyle}
+            >
+              {people.map((person) => (
+                <option key={person} value={person}>
+                  {person}
+                </option>
+              ))}
             </select>
-            <select value={taskStatus} onChange={(e) => setTaskStatus(e.target.value as TaskStatus)} style={inputStyle}>
-              {taskStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+
+            <select
+              value={taskStatus}
+              onChange={(e) => setTaskStatus(e.target.value as TaskStatus)}
+              style={inputStyle}
+            >
+              {taskStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
             </select>
-            <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value as TaskPriority)} style={inputStyle}>
-              {taskPriorities.map((priority) => <option key={priority} value={priority}>Priorita: {priority}</option>)}
+
+            <select
+              value={taskPriority}
+              onChange={(e) => setTaskPriority(e.target.value as TaskPriority)}
+              style={inputStyle}
+            >
+              {taskPriorities.map((priority) => (
+                <option key={priority} value={priority}>
+                  Priorita: {priority}
+                </option>
+              ))}
             </select>
-            <select value={taskUpdatedBy} onChange={(e) => setTaskUpdatedBy(e.target.value as Person)} style={inputStyle}>
-              {people.map((person) => <option key={person} value={person}>Update dělal: {person}</option>)}
+
+            <select
+              value={taskUpdatedBy}
+              onChange={(e) => setTaskUpdatedBy(e.target.value as Person)}
+              style={inputStyle}
+            >
+              {people.map((person) => (
+                <option key={person} value={person}>
+                  Update dělal: {person}
+                </option>
+              ))}
             </select>
-            <input type="date" value={taskDeadline} onChange={(e) => setTaskDeadline(e.target.value)} style={inputStyle} />
-            <input value={taskNote} onChange={(e) => setTaskNote(e.target.value)} placeholder="Komentář / poznámka" style={inputStyle} />
+
+            <input
+              type="date"
+              value={taskDeadline}
+              onChange={(e) => setTaskDeadline(e.target.value)}
+              style={inputStyle}
+            />
+
+            <input
+              value={taskNote}
+              onChange={(e) => setTaskNote(e.target.value)}
+              placeholder="Komentář / poznámka"
+              style={inputStyle}
+            />
+
             <div style={buttonRowStyle}>
-              <button onClick={saveTask} style={primaryButtonStyle} disabled={saving}>
+              <button
+                onClick={saveTask}
+                style={primaryButtonStyle}
+                disabled={saving}
+              >
                 {editingTaskId ? "Uložit" : "Přidat"}
               </button>
-              {editingTaskId && <button onClick={resetTaskForm} style={secondaryButtonStyle}>Zrušit</button>}
+
+              {editingTaskId && (
+                <button onClick={resetTaskForm} style={secondaryButtonStyle}>
+                  Zrušit
+                </button>
+              )}
             </div>
           </div>
 
@@ -154,9 +304,18 @@ export default function TasksSection(props: Props) {
 
             <div style={chipsWrapStyle}>
               <span style={filterLabelStyle}>Vlastník:</span>
-              <button style={chipStyle(taskOwnerFilter === "Vše")} onClick={() => setTaskOwnerFilter("Vše")}>Vše</button>
+              <button
+                style={chipStyle(taskOwnerFilter === "Vše")}
+                onClick={() => setTaskOwnerFilter("Vše")}
+              >
+                Vše
+              </button>
               {people.map((person) => (
-                <button key={person} style={chipStyle(taskOwnerFilter === person)} onClick={() => setTaskOwnerFilter(person)}>
+                <button
+                  key={person}
+                  style={chipStyle(taskOwnerFilter === person)}
+                  onClick={() => setTaskOwnerFilter(person)}
+                >
                   {person}
                 </button>
               ))}
@@ -164,9 +323,18 @@ export default function TasksSection(props: Props) {
 
             <div style={chipsWrapStyle}>
               <span style={filterLabelStyle}>Stav:</span>
-              <button style={chipStyle(taskStatusFilter === "Vše")} onClick={() => setTaskStatusFilter("Vše")}>Vše</button>
+              <button
+                style={chipStyle(taskStatusFilter === "Vše")}
+                onClick={() => setTaskStatusFilter("Vše")}
+              >
+                Vše
+              </button>
               {taskStatuses.map((status) => (
-                <button key={status} style={chipStyle(taskStatusFilter === status)} onClick={() => setTaskStatusFilter(status)}>
+                <button
+                  key={status}
+                  style={chipStyle(taskStatusFilter === status)}
+                  onClick={() => setTaskStatusFilter(status)}
+                >
                   {status}
                 </button>
               ))}
@@ -174,15 +342,30 @@ export default function TasksSection(props: Props) {
 
             <div style={chipsWrapStyle}>
               <span style={filterLabelStyle}>Priorita:</span>
-              <button style={chipStyle(taskPriorityFilter === "Vše")} onClick={() => setTaskPriorityFilter("Vše")}>Vše</button>
+              <button
+                style={chipStyle(taskPriorityFilter === "Vše")}
+                onClick={() => setTaskPriorityFilter("Vše")}
+              >
+                Vše
+              </button>
               {taskPriorities.map((priority) => (
-                <button key={priority} style={chipStyle(taskPriorityFilter === priority)} onClick={() => setTaskPriorityFilter(priority)}>
+                <button
+                  key={priority}
+                  style={chipStyle(taskPriorityFilter === priority)}
+                  onClick={() => setTaskPriorityFilter(priority)}
+                >
                   {priority}
                 </button>
               ))}
             </div>
 
-            <select value={taskSort} onChange={(e) => setTaskSort(e.target.value as "deadline" | "owner" | "priority")} style={inputStyle}>
+            <select
+              value={taskSort}
+              onChange={(e) =>
+                setTaskSort(e.target.value as "deadline" | "owner" | "priority")
+              }
+              style={inputStyle}
+            >
               <option value="deadline">Řadit podle deadline</option>
               <option value="owner">Řadit podle vlastníka</option>
               <option value="priority">Řadit podle priority</option>
@@ -190,43 +373,37 @@ export default function TasksSection(props: Props) {
           </div>
 
           <div style={cardListStyle}>
-            {filteredTasks.length === 0 && <div style={emptyStyle}>Žádné úkoly pro aktuální filtr.</div>}
-            {filteredTasks.map((task) => (
-              <div
-  key={task.id}
-  style={{
-    ...cardStyle,
-    borderLeft:
-      task.status === "Hotovo"
-        ? "6px solid green"
-        : task.priority === "Vysoká"
-        ? "6px solid orange"
-        : task.deadline && new Date(task.deadline) < new Date()
-        ? "6px solid red"
-        : "6px solid transparent",
-  }}
->
-                <div style={badgeRowStyle}>
-                  <span style={badgeStyle}>{task.owner}</span>
-                  <span style={badgeStyle}>{task.status}</span>
-                  <span style={badgeStyle}>{task.priority}</span>
-                </div>
-                <div style={cardTitleStyle}>{task.text}</div>
-                <div style={metaGridStyle}>
-                  <div>Deadline: <strong>{formatDate(task.deadline)}</strong></div>
-                  <div>Komentář: <strong>{task.note || "-"}</strong></div>
-                  <div>Poslední update: <strong>{task.updated_by || "-"}</strong></div>
-                  <div>Upraveno: <strong>{formatDate(task.updated_at)}</strong></div>
-                </div>
-                <div style={buttonRowStyle}>
-                  <button onClick={() => toggleTask(task)} style={secondaryButtonStyle}>
-                    {task.done || task.status === "Hotovo" ? "Označit zpět" : "Označit hotovo"}
-                  </button>
-                  <button onClick={() => startEditTask(task)} style={secondaryButtonStyle}>Upravit</button>
-                  <button onClick={() => deleteTask(task.id)} style={dangerButtonStyle}>Smazat</button>
-                </div>
+            {filteredTasks.length === 0 && (
+              <div style={emptyStyle}>Žádné úkoly pro aktuální filtr.</div>
+            )}
+
+            {todayTasks.length > 0 && (
+              <div>
+                <h3 style={{ marginBottom: 10 }}>🔥 Dnes / zítra</h3>
+                <div style={cardListStyle}>{todayTasks.map(renderTaskCard)}</div>
               </div>
-            ))}
+            )}
+
+            {soonTasks.length > 0 && (
+              <div>
+                <h3 style={{ marginBottom: 10, marginTop: 18 }}>⏳ Do týdne</h3>
+                <div style={cardListStyle}>{soonTasks.map(renderTaskCard)}</div>
+              </div>
+            )}
+
+            {laterTasks.length > 0 && (
+              <div>
+                <h3 style={{ marginBottom: 10, marginTop: 18 }}>📅 Později</h3>
+                <div style={cardListStyle}>{laterTasks.map(renderTaskCard)}</div>
+              </div>
+            )}
+
+            {noDeadlineTasks.length > 0 && (
+              <div>
+                <h3 style={{ marginBottom: 10, marginTop: 18 }}>🕳️ Bez termínu</h3>
+                <div style={cardListStyle}>{noDeadlineTasks.map(renderTaskCard)}</div>
+              </div>
+            )}
           </div>
         </>
       )}
